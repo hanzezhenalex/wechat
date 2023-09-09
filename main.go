@@ -7,5 +7,8 @@ import (
 )
 
 func main() {
-	_, _ = src.NewMysqlDatastore(context.Background())
+	_, err := src.NewMysqlDatastore(context.Background())
+	if err != nil {
+		panic(err)
+	}
 }

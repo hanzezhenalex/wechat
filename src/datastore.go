@@ -13,7 +13,7 @@ import (
 const (
 	defaultUsername  = "root"
 	defaultPassword  = "sergey"
-	defaultMysqlHost = "localhost"
+	defaultMysqlHost = "10.237.150.156"
 	defaultMysqlPort = 3306
 )
 
@@ -43,12 +43,15 @@ func NewMysqlDatastore(ctx context.Context) (*MysqlDatastore, error) {
 
 	datastoreTracer.Infof("creating mysql datastore, timeout=%s", timeout.String())
 
-	// "root:<password>@tcp(127.0.0.1:3306)/123begin"
-	db, err := sql.Open("mysql", fmt.Sprintf("%s:<%s>@tcp(%s:%d)/",
-		defaultUsername, defaultPassword, defaultMysqlHost, defaultMysqlPort))
+	// "username:password@tcp(host:post)/dbname"
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/",
+		defaultUsername, defaultPassword, defaultMysqlHost, defaultMysqlPort)
+	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("fail to open mysql db: %w", err)
 	}
+
+	datastoreTracer.Info("ping db")
 	if err := db.PingContext(datastoreCtx); err != nil {
 		return nil, fmt.Errorf("fail to ping mysql: %w", err)
 	}
@@ -94,12 +97,17 @@ func (store *MysqlDatastore) PrepareDatabaseAndTables(ctx context.Context) error
 		`
 	)
 
+	datastoreTracer.Info("creating db wechat")
 	if _, err := store.db.ExecContext(ctx, createDB); err != nil {
 		return fmt.Errorf("fail to create database, %w", err)
 	}
+
+	datastoreTracer.Info("creating users table")
 	if _, err := store.db.ExecContext(ctx, createTableUsers); err != nil {
 		return fmt.Errorf("fail to create records table, %w", err)
 	}
+
+	datastoreTracer.Info("creating records table")
 	if _, err := store.db.ExecContext(ctx, createTableRecords); err != nil {
 		return fmt.Errorf("fail to create records table, %w", err)
 	}
