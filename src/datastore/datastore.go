@@ -7,18 +7,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hanzezhenalex/wechat/src"
+
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/sirupsen/logrus"
 )
 
 const (
-	defaultDatabase = "wechat"
-
-	defaultUsername  = "sergey"
-	defaultPassword  = "sergey"
-	defaultMysqlHost = "localhost"
-	defaultMysqlPort = 3306
-
 	confirmedStr         = "confirmed"
 	waitingForConfirmStr = "waitingForConfirm"
 	deniedStr            = "denied"
@@ -64,28 +59,7 @@ func ToRecordStatus(s string) RecordStatus {
 	return unknown
 }
 
-var (
-	datastoreTracer    = logrus.WithField("comp", "datastore")
-	DefaultMysqlConfig = Config{
-		Username: defaultUsername,
-		Password: defaultPassword,
-		Host:     defaultMysqlHost,
-		Port:     defaultMysqlPort,
-	}
-)
-
-type Config struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-}
-
-func (cfg Config) dns() string {
-	// "username:password@tcp(host:post)/dbname"
-	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&loc=Local",
-		cfg.Username, cfg.Password, cfg.Host, cfg.Port, defaultDatabase)
-}
+var datastoreTracer = logrus.WithField("comp", "datastore")
 
 type Record struct {
 	ID        int       `json:"id"`
@@ -115,14 +89,14 @@ type MysqlDatastore struct {
 	db *sql.DB
 }
 
-func NewMysqlDatastore(ctx context.Context, cfg Config, cleanup bool) (*MysqlDatastore, error) {
+func NewMysqlDatastore(ctx context.Context, cfg src.Config, cleanup bool) (*MysqlDatastore, error) {
 	timeout := 10 * time.Minute
 	datastoreCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	datastoreTracer.Infof("creating mysql datastore, timeout=%s", timeout.String())
 
-	db, err := sql.Open("mysql", cfg.dns())
+	db, err := sql.Open("mysql", cfg.Dns())
 	if err != nil {
 		return nil, fmt.Errorf("fail to open mysql db: %w", err)
 	}

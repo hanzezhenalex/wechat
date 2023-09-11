@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hanzezhenalex/wechat/src"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,8 +20,14 @@ func TestMysqlDatastore(t *testing.T) {
 	rq := require.New(t)
 	ctx := context.Background()
 
-	cfg := DefaultMysqlConfig
-	cfg.Host = "10.237.150.156"
+	cfg := src.Config{
+		DbConfig: src.DbConfig{
+			Host:     "10.237.150.156",
+			Port:     3306,
+			Username: "sergey",
+			Password: "sergey",
+		},
+	}
 
 	mysql, err := NewMysqlDatastore(ctx, cfg, true)
 	rq.NoError(err)
