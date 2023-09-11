@@ -102,7 +102,7 @@ type RecordQueryOption struct {
 }
 
 type DataStore interface {
-	CreateRecord(ctx context.Context, record Record) error
+	CreateRecordAndCheckHash(ctx context.Context, record Record) (bool, error)
 	GetRecordsByLeader(ctx context.Context, leader string, option RecordQueryOption) ([]Record, error)
 	GetRecordsByUser(ctx context.Context, user string, option RecordQueryOption) ([]Record, error)
 
@@ -198,22 +198,24 @@ func (store *MysqlDatastore) GetRecordsByLeader(ctx context.Context, leader stri
 	const (
 		queryByLeader = `
 			SELECT 
+			    target_records.id AS id,
 			    target_records.username AS username, 
 			    target_records.graph_url AS graph_url, 
-			    target_records.created_at AS created_at
+			    target_records.created_at AS created_at,
+				target_records.status AS status
 			FROM 
 			    (
 					SELECT
 						username
 					FROM
-						users AS u
+						users
 					WHERE 
 						leader = ?
 				)	AS target_users
 			LEFT JOIN 
 				(
 				    SELECT
-				        username, graph_url, created_at, status
+				        id, username, graph_url, created_at, status
 				    FROM 
 				        records
 				    WHERE 
@@ -229,8 +231,8 @@ func (store *MysqlDatastore) GetRecordsByLeader(ctx context.Context, leader stri
 		`
 	)
 
-	rows, err := store.db.QueryContext(ctx, queryByLeader, leader, option.minStatus,
-		option.maxStatus, option.from, option.to)
+	rows, err := store.db.QueryContext(ctx, queryByLeader, leader, ToRecordStatus(option.minStatus),
+		ToRecordStatus(option.maxStatus), option.from, option.to)
 	if err != nil {
 		return nil, fmt.Errorf("fail to query db, %w", err)
 	}
@@ -240,11 +242,13 @@ func (store *MysqlDatastore) GetRecordsByLeader(ctx context.Context, leader stri
 		var username, graphUrl string
 		var createdAt time.Time
 		var status RecordStatus
+		var id int
 
-		if err := rows.Scan(&username, &graphUrl, &createdAt, &status); err != nil {
+		if err := rows.Scan(&id, &username, &graphUrl, &createdAt, &status); err != nil {
 			return nil, fmt.Errorf("fail scan records from rows, %w", err)
 		}
 		records = append(records, Record{
+			ID:        id,
 			CreatedAt: createdAt,
 			Username:  username,
 			GraphUrl:  graphUrl,
@@ -270,8 +274,8 @@ func (store *MysqlDatastore) GetRecordsByUser(ctx context.Context, user string, 
 		`
 	)
 
-	rows, err := store.db.QueryContext(ctx, queryByUser, option.minStatus,
-		option.maxStatus, option.from, option.to, user)
+	rows, err := store.db.QueryContext(ctx, queryByUser, ToRecordStatus(option.minStatus),
+		ToRecordStatus(option.maxStatus), option.from, option.to, user)
 	if err != nil {
 		return nil, fmt.Errorf("fail to query db, %w", err)
 	}
@@ -295,7 +299,7 @@ func (store *MysqlDatastore) GetRecordsByUser(ctx context.Context, user string, 
 	return records, nil
 }
 
-func (store *MysqlDatastore) CreateRecord(ctx context.Context, record Record) error {
+func (store *MysqlDatastore) CreateRecordAndCheckHash(ctx context.Context, record Record) (bool, error) {
 	const insertRecord = `
 		INSERT INTO 
 			records(hash, graph_url, username, status)
@@ -303,11 +307,34 @@ func (store *MysqlDatastore) CreateRecord(ctx context.Context, record Record) er
 		    (?, ?, ?, ?)
 	`
 
-	_, err := store.db.ExecContext(ctx, insertRecord, record.Hash, record.GraphUrl, record.Username, ToRecordStatus(record.Status))
-	if err != nil {
-		return fmt.Errorf("fail to exec insert sql, %w", err)
+	const insertRecordWhenHashNotExist = `
+		INSERT INTO 
+			records(hash, graph_url, username, status)
+		SELECT 
+			?, ?, ?, ?
+		FROM 
+			DUAL
+		WHERE NOT EXISTS (SELECT 1 FROM records WHERE hash=?)
+	`
+
+	status := ToRecordStatus(record.Status)
+	if status == waitingForConfirm {
+		rows, err := store.db.ExecContext(ctx, insertRecordWhenHashNotExist, record.Hash, record.GraphUrl, record.Username, status, record.Hash)
+		if err != nil {
+			return false, fmt.Errorf("fail to exec insert sql, %w", err)
+		}
+		affected, _ := rows.RowsAffected()
+		if affected > 0 {
+			return true, nil
+		} else {
+			status = autoDenied
+		}
 	}
-	return nil
+	_, err := store.db.ExecContext(ctx, insertRecord, record.Hash, record.GraphUrl, record.Username, status)
+	if err != nil {
+		return false, fmt.Errorf("fail to exec insert sql, %w", err)
+	}
+	return true, nil
 }
 
 func (store *MysqlDatastore) CreateUser(ctx context.Context, username, leader string) error {

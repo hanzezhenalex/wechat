@@ -58,7 +58,9 @@ func TestMysqlDatastore(t *testing.T) {
 	}
 
 	for _, record := range records {
-		rq.NoError(mysql.CreateRecord(ctx, record))
+		n, err := mysql.CreateRecordAndCheckHash(ctx, record)
+		rq.NoError(err)
+		rq.True(n)
 	}
 
 	t.Run("get record by leader", func(t *testing.T) {
