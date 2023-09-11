@@ -33,6 +33,7 @@ func TestMysqlDatastore(t *testing.T) {
 			Username: "leader_1",
 			Hash:     "hash0",
 			GraphUrl: "http://www.baidu.com",
+			Status:   confirmedStr,
 		},
 		{
 			Username: "user_1",
@@ -57,26 +58,18 @@ func TestMysqlDatastore(t *testing.T) {
 	}
 
 	for _, record := range records {
-		created, err := mysql.CreateRecordIfNotExist(ctx, record)
-		rq.NoError(err)
-		rq.True(created)
+		rq.NoError(mysql.CreateRecord(ctx, record))
 	}
 
 	t.Run("get record by leader", func(t *testing.T) {
 		now := time.Now()
-		records, err := mysql.GetRecordByLeader(ctx, "leader_1", Zero(now), now)
+		records, err := mysql.GetRecordsByLeader(ctx, "leader_1", RecordQueryOption{
+			minStatus: unknownStr,
+			maxStatus: confirmedStr,
+			from:      Zero(now),
+			to:        now,
+		})
 		rq.NoError(err)
 		rq.Len(records, 4)
 	})
-
-	t.Run("duplicate hash", func(t *testing.T) {
-		created, err := mysql.CreateRecordIfNotExist(ctx, Record{
-			Username: "user_2",
-			Hash:     "hash4",
-			GraphUrl: "http://www.baidu.com",
-		})
-		rq.NoError(err)
-		rq.False(created)
-	})
-
 }

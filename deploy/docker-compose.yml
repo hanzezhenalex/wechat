@@ -7,8 +7,6 @@ services:
       MYSQL_USER: 'sergey'
       MYSQL_PASSWORD: 'sergey'
       MYSQL_ROOT_PASSWORD: 'sergey'
-    expose:
-      - '3306'
     volumes:
       - /home/mysql/data:/var/lib/mysql
     container_name:

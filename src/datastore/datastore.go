@@ -18,7 +18,51 @@ const (
 	defaultPassword  = "sergey"
 	defaultMysqlHost = "localhost"
 	defaultMysqlPort = 3306
+
+	confirmedStr         = "confirmed"
+	waitingForConfirmStr = "waitingForConfirm"
+	deniedStr            = "denied"
+	autoDeniedStr        = "autoDenied"
+	unknownStr           = "unknown"
 )
+
+const (
+	unknown RecordStatus = iota + 1
+	autoDenied
+	denied
+	waitingForConfirm
+	confirmed
+)
+
+type RecordStatus int
+
+func (rs RecordStatus) String() string {
+	switch rs {
+	case autoDenied:
+		return autoDeniedStr
+	case denied:
+		return deniedStr
+	case waitingForConfirm:
+		return waitingForConfirmStr
+	case confirmed:
+		return confirmedStr
+	}
+	return unknownStr
+}
+
+func ToRecordStatus(s string) RecordStatus {
+	switch s {
+	case autoDeniedStr:
+		return autoDenied
+	case deniedStr:
+		return denied
+	case waitingForConfirmStr:
+		return waitingForConfirm
+	case confirmedStr:
+		return confirmed
+	}
+	return unknown
+}
 
 var (
 	datastoreTracer    = logrus.WithField("comp", "datastore")
@@ -44,16 +88,26 @@ func (cfg Config) dns() string {
 }
 
 type Record struct {
+	ID        int       `json:"id"`
 	Hash      string    `json:"hash"`
 	Username  string    `json:"username"`
 	CreatedAt time.Time `json:"createdAt"`
 	GraphUrl  string    `json:"graph_url"`
+	Status    string    `json:"status"`
+}
+
+type RecordQueryOption struct {
+	from, to             time.Time
+	minStatus, maxStatus string
 }
 
 type DataStore interface {
-	GetRecordByLeader(ctx context.Context, leader string, from, to time.Time) ([]Record, error)
-	CreateRecordIfNotExist(ctx context.Context, record Record) (bool, error)
+	CreateRecord(ctx context.Context, record Record) error
+	GetRecordsByLeader(ctx context.Context, leader string, option RecordQueryOption) ([]Record, error)
+	GetRecordsByUser(ctx context.Context, user string, option RecordQueryOption) ([]Record, error)
+
 	CreateUser(ctx context.Context, username, leader string) error
+
 	Close() error
 }
 
@@ -92,39 +146,45 @@ func (store *MysqlDatastore) prepareTables(ctx context.Context, cleanup bool) er
 	const (
 		createTableRecords = `
 			CREATE TABLE IF NOT EXISTS records(
-			    hash VARCHAR(250) NOT NULL PRIMARY KEY,
-			    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), 
+			    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+			    hash VARCHAR(250) NOT NULL,
+			    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, 
 			    /* 
 			     * https://stackoverflow.com/questions/219569/best-database-field-type-for-a-url
 			     * Lowest common denominator max URL length among popular web browsers: 2,083
 			     */
 			    graph_url VARCHAR(2083) NOT NULL,  
-			    username VARCHAR(50) NOT NULL,
-			    CONSTRAINT FOREIGN KEY(username) REFERENCES users(username)
+			    username VARCHAR(64) NOT NULL,
+			    status INT DEFAULT 2,
+			    reserve1 VARCHAR(128) DEFAULT NULL,
+ 			    reserve2 VARCHAR(128) DEFAULT NULL, 
+			    CONSTRAINT FOREIGN KEY(username) REFERENCES users(username),
+			    INDEX (hash)
 			) ENGINE=Innodb DEFAULT CHARACTER SET=utf8;
 		`
 		createTableUsers = `
 			CREATE TABLE IF NOT EXISTS users(
-			    username VARCHAR(50) NOT NULL PRIMARY KEY,
-			    leader VARCHAR(50),
-			    deleted BOOLEAN DEFAULT false
+			    username VARCHAR(64) NOT NULL PRIMARY KEY,
+			    leader VARCHAR(64),
+			    active BOOLEAN DEFAULT true,
+			    reserve VARCHAR(128)
 			) ENGINE=Innodb DEFAULT CHARACTER SET=utf8;
 		`
 	)
 
 	if cleanup {
 		datastoreTracer.Info("clean up tables")
-		if _, err := store.db.ExecContext(ctx, `DROP TABLE records`); err != nil {
+		if _, err := store.db.ExecContext(ctx, `DROP TABLE IF EXISTS records;`); err != nil {
 			return fmt.Errorf("fail to drop records table, %w", err)
 		}
-		if _, err := store.db.ExecContext(ctx, `DROP TABLE users`); err != nil {
+		if _, err := store.db.ExecContext(ctx, `DROP TABLE IF EXISTS users;`); err != nil {
 			return fmt.Errorf("fail to drop users table, %w", err)
 		}
 	}
 
 	datastoreTracer.Debug("creating users table")
 	if _, err := store.db.ExecContext(ctx, createTableUsers); err != nil {
-		return fmt.Errorf("fail to create records table, %w", err)
+		return fmt.Errorf("fail to create users table, %w", err)
 	}
 
 	datastoreTracer.Debug("creating records table")
@@ -134,7 +194,7 @@ func (store *MysqlDatastore) prepareTables(ctx context.Context, cleanup bool) er
 	return nil
 }
 
-func (store *MysqlDatastore) GetRecordByLeader(ctx context.Context, leader string, from, to time.Time) ([]Record, error) {
+func (store *MysqlDatastore) GetRecordsByLeader(ctx context.Context, leader string, option RecordQueryOption) ([]Record, error) {
 	const (
 		queryByLeader = `
 			SELECT 
@@ -153,11 +213,13 @@ func (store *MysqlDatastore) GetRecordByLeader(ctx context.Context, leader strin
 			LEFT JOIN 
 				(
 				    SELECT
-				        username, graph_url, created_at
+				        username, graph_url, created_at, status
 				    FROM 
 				        records
 				    WHERE 
-				        created_at >= ?
+				        status >= ?
+				      	AND status <= ?
+				        AND created_at >= ?
 						AND created_at <= ?
 				) AS target_records
 			ON
@@ -166,7 +228,9 @@ func (store *MysqlDatastore) GetRecordByLeader(ctx context.Context, leader strin
 			    target_records.graph_url IS NOT NULL
 		`
 	)
-	rows, err := store.db.QueryContext(ctx, queryByLeader, leader, from, to)
+
+	rows, err := store.db.QueryContext(ctx, queryByLeader, leader, option.minStatus,
+		option.maxStatus, option.from, option.to)
 	if err != nil {
 		return nil, fmt.Errorf("fail to query db, %w", err)
 	}
@@ -175,38 +239,75 @@ func (store *MysqlDatastore) GetRecordByLeader(ctx context.Context, leader strin
 	for rows.Next() {
 		var username, graphUrl string
 		var createdAt time.Time
+		var status RecordStatus
 
-		if err := rows.Scan(&username, &graphUrl, &createdAt); err != nil {
+		if err := rows.Scan(&username, &graphUrl, &createdAt, &status); err != nil {
 			return nil, fmt.Errorf("fail scan records from rows, %w", err)
 		}
 		records = append(records, Record{
 			CreatedAt: createdAt,
 			Username:  username,
 			GraphUrl:  graphUrl,
+			Status:    status.String(),
 		})
 	}
 	return records, nil
 }
 
-func (store *MysqlDatastore) CreateRecordIfNotExist(ctx context.Context, record Record) (bool, error) {
+func (store *MysqlDatastore) GetRecordsByUser(ctx context.Context, user string, option RecordQueryOption) ([]Record, error) {
+	const (
+		queryByUser = `
+			SELECT
+				username, graph_url, created_at, status
+			FROM 
+				records
+			WHERE 
+				status >= ?
+				AND status <= ?
+				AND created_at >= ?
+				AND created_at <= ?
+				AND username = ?
+		`
+	)
+
+	rows, err := store.db.QueryContext(ctx, queryByUser, option.minStatus,
+		option.maxStatus, option.from, option.to, user)
+	if err != nil {
+		return nil, fmt.Errorf("fail to query db, %w", err)
+	}
+
+	var records []Record
+	for rows.Next() {
+		var username, graphUrl string
+		var createdAt time.Time
+		var status RecordStatus
+
+		if err := rows.Scan(&username, &graphUrl, &createdAt, &status); err != nil {
+			return nil, fmt.Errorf("fail scan records from rows, %w", err)
+		}
+		records = append(records, Record{
+			CreatedAt: createdAt,
+			Username:  username,
+			GraphUrl:  graphUrl,
+			Status:    status.String(),
+		})
+	}
+	return records, nil
+}
+
+func (store *MysqlDatastore) CreateRecord(ctx context.Context, record Record) error {
 	const insertRecord = `
-		INSERT IGNORE INTO 
-			records(hash, graph_url, username)
+		INSERT INTO 
+			records(hash, graph_url, username, status)
 		VALUES 
-		    (?, ?, ?)
+		    (?, ?, ?, ?)
 	`
 
-	rows, err := store.db.ExecContext(ctx, insertRecord, record.Hash, record.GraphUrl, record.Username)
+	_, err := store.db.ExecContext(ctx, insertRecord, record.Hash, record.GraphUrl, record.Username, ToRecordStatus(record.Status))
 	if err != nil {
-		return false, fmt.Errorf("fail to exec insert sql, %w", err)
+		return fmt.Errorf("fail to exec insert sql, %w", err)
 	}
-
-	if affected, err := rows.RowsAffected(); err != nil {
-		return false, fmt.Errorf("fail to read insert result, %w", err)
-	} else if affected == 0 {
-		return false, nil
-	}
-	return true, nil
+	return nil
 }
 
 func (store *MysqlDatastore) CreateUser(ctx context.Context, username, leader string) error {

@@ -3,8 +3,10 @@
 set -exo pipefail
 
 # find mysql container
-docker_mysql_name="mysql-for-wechat"
-docker_mysql_id=$(docker ps | grep "${docker_mysql_name}" | awk '{print $1}')
+if [ -z "${DOCKER_MYSQL_NAME}" ]; then
+  DOCKER_MYSQL_NAME="mysql-for-wechat"
+fi
+docker_mysql_id=$(docker ps | grep "${DOCKER_MYSQL_NAME}" | awk '{print $1}')
 if [ -z "${docker_mysql_id}" ]; then
   echo "mysql is not working"
   exit 1
