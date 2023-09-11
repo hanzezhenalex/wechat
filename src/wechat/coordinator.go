@@ -2,7 +2,9 @@ package wechat
 
 import (
 	"encoding/xml"
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/hanzezhenalex/wechat/src"
 
@@ -40,7 +42,7 @@ func (c *coordinator) Handler() gin.HandlerFunc {
 		default:
 			ret = "不支持当前消息类型"
 		}
-		_, _ = context.Writer.WriteString(ret)
+		_, _ = context.Writer.WriteString(wrapResponse(msg.FromUserName, msg.ToUserName, ret))
 	}
 }
 
@@ -57,3 +59,14 @@ type Message struct {
 const (
 	msgText = "text"
 )
+
+func wrapResponse(to string, from string, msg string) string {
+	template := "<xml>" +
+		"<ToUserName><![CDATA[%s]]></ToUserName>" +
+		"<FromUserName><![CDATA[%s]]></FromUserName>" +
+		"<CreateTime>%d</CreateTime>" +
+		"<MsgType><![CDATA[text]]></MsgType>" +
+		"<Content><![CDATA[%s]]></Content>" +
+		"</xml>"
+	return fmt.Sprintf(template, to, from, time.Now().Unix(), msg)
+}
