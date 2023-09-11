@@ -36,11 +36,13 @@ func (c *coordinator) Handler() gin.HandlerFunc {
 	}
 }
 
-type message struct {
-	ToUserName   string                 `xml:"ToUserName"`
-	FromUsername string                 `xml:"FromUsername"`
-	CreateTime   string                 `xml:"CreateTime"`
-	MsgType      string                 `xml:"MsgType"`
-	MsgId        string                 `xml:"MsgId,omitempty"`
-	Content      map[string]interface{} `xml:",inline"`
+// use struct + inline type?
+type message map[string]interface{}
+
+func (m message) fromUsername() string {
+	return m["FromUsername"].(string)
+}
+
+func (m message) msgType() string {
+	return m["MsgType"].(string)
 }
