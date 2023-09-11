@@ -1,7 +1,7 @@
 package wechat
 
 import (
-	"fmt"
+	"encoding/xml"
 	"io/ioutil"
 	"net/http"
 
@@ -29,10 +29,28 @@ func (c *coordinator) Handler() gin.HandlerFunc {
 		if err != nil {
 			cTracer.Errorf("fail to read request body, %s", err.Error())
 			context.Writer.WriteHeader(http.StatusBadRequest)
+			return
 		}
 		_ = context.Request.Body.Close()
 
-		fmt.Println(string(raw))
+		cTracer.Debugf("recive a msg from wechat, msg=%s", string(raw))
+
+		var msg message
+		if err := xml.NewDecoder(context.Request.Body).Decode(&msg); err != nil {
+			cTracer.Errorf("fail to decode request body, %s", err.Error())
+			context.Writer.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
 		_, _ = context.Writer.WriteString("")
 	}
+}
+
+type message struct {
+	ToUserName   string                 `xml:"ToUserName"`
+	FromUsername string                 `xml:"FromUsername"`
+	CreateTime   string                 `xml:"CreateTime"`
+	MsgType      string                 `xml:"MsgType"`
+	MsgId        string                 `xml:"MsgId,omitempty"`
+	Content      map[string]interface{} `xml:",inline"`
 }
