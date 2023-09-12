@@ -1,6 +1,6 @@
 version: "3.3"
 services:
-  mysql:
+  mysql-for-wechat:
     image: mysql/mysql-server:latest
     restart: always
     environment:
@@ -11,7 +11,7 @@ services:
     volumes:
       - /home/mysql/data:/var/lib/mysql
     container_name:
-      mysql-for-wechat
+      mysql
   wechat:
     build: .
     restart: always
@@ -19,7 +19,7 @@ services:
     depends_on:
       - mysql
     volumes:
-      - /home/wechat/config.json:/usr/app/config.json
+      - /home/ccloud/wechat/config.json:/usr/app/config.json
     ports:
       - "8096:8096"
     command:
