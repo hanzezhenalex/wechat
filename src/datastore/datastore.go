@@ -128,17 +128,18 @@ func (store *MysqlDatastore) prepareTables(ctx context.Context, cleanup bool) er
 			     * Lowest common denominator max URL length among popular web browsers: 2,083
 			     */
 			    graph_url VARCHAR(2083) NOT NULL,  
-			    username VARCHAR(64) NOT NULL,
+			    wechat_id VARCHAR(128) NOT NULL,
 			    status INT DEFAULT 2,
 			    reserve1 VARCHAR(128) DEFAULT NULL,
  			    reserve2 VARCHAR(128) DEFAULT NULL, 
-			    CONSTRAINT FOREIGN KEY(username) REFERENCES users(username),
+			    CONSTRAINT FOREIGN KEY(wechat_id) REFERENCES users(wechat_id),
 			    INDEX (hash)
 			) ENGINE=Innodb DEFAULT CHARACTER SET=utf8;
 		`
 		createTableUsers = `
 			CREATE TABLE IF NOT EXISTS users(
-			    username VARCHAR(64) NOT NULL PRIMARY KEY,
+			    wechat_id VARCHAR(128) NOT NULL PRIMARY KEY,
+			    username VARCHAR(64),
 			    leader VARCHAR(64),
 			    active BOOLEAN DEFAULT true,
 			    reserve VARCHAR(128)
