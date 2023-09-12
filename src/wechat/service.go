@@ -16,7 +16,11 @@ type Deduplication struct {
 	store datastore.DataStore
 }
 
-func (dd *Deduplication) Handle(_ context.Context, message Message) (string, error) {
+func (dd *Deduplication) Handle(_ context.Context, message Message) (ret string, err error) {
+	defer func() {
+		ret = message.TextResponse(ret)
+	}()
+
 	switch message.MsgType {
 	case msgImage:
 		url, err := message.GetPicUrl()
@@ -29,7 +33,7 @@ func (dd *Deduplication) Handle(_ context.Context, message Message) (string, err
 		}
 		return md5, nil
 	default:
-		return message.TextResponse(notSupportYet), nil
+		return notSupportYet, nil
 	}
 }
 
