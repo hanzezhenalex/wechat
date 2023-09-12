@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -euxo pipefail
+set -exo pipefail
 
 DOCKER_MYSQL_NAME="mysql-for-wechat"
 WECHAT_SERVER_NAME="wechat"
