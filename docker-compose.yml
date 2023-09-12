@@ -23,4 +23,4 @@ services:
     ports:
       - "8096:8096"
     command:
-      - "--config /usr/app/config.json"
+      - "--config /usr/app/config_wechat.json"

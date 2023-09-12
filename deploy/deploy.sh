@@ -47,7 +47,7 @@ if [ -z "${USE_DOCKER_COMPOSE}" ]; then
   docker run -d --name "${WECHAT_SERVER_NAME}" -p 8096:8096 \
     --network "${DOCKER_NETWORK}" \
     -v "${CONFIG_FILE_FOLDER}":/usr/app/wechat \
-    alex/wechat_server:latest --config /usr/app/wechat/config.json
+    alex/wechat_server:latest --config "/usr/app/wechat/${CONFIG_FILE_NAME}"
 
 else
   echo "use docker_compose"
