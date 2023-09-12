@@ -46,7 +46,7 @@ func (c *coordinator) Handler() gin.HandlerFunc {
 
 		ctx := context.Request.Context()
 
-		if _, ok := c.ums.GetUserById(ctx, msg.FromUserName); ok {
+		if _, ok := c.ums.GetUserById(ctx, msg.FromUserName); !ok {
 			_, _ = context.Writer.WriteString(msg.TextResponse(userNotRegistered))
 			return
 		}
@@ -54,7 +54,7 @@ func (c *coordinator) Handler() gin.HandlerFunc {
 		ret, err := c.svc.Handle(ctx, msg)
 		if err != nil {
 			cTracer.Errorf("fail to process message, %s", err.Error())
-			ret = serverInternalError
+			ret = msg.TextResponse(serverInternalError)
 		}
 		_, _ = context.Writer.WriteString(ret)
 	}
