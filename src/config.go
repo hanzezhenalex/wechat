@@ -1,6 +1,10 @@
 package src
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+)
 
 const defaultDatabase = "wechat"
 
@@ -22,4 +26,16 @@ type Config struct {
 	Token     string `json:"token"`
 	AppID     string `json:"app_id"`
 	AppSecret string `json:"app_secret"`
+}
+
+func NewConfigFromFile(path string) (Config, error) {
+	var cfg Config
+	f, err := os.Open(path)
+	if err != nil {
+		return cfg, fmt.Errorf("fail to read config file, %w", err)
+	}
+	if err := json.NewDecoder(f).Decode(&cfg); err != nil {
+		return cfg, fmt.Errorf("fail to decode config file, %w", err)
+	}
+	return cfg, err
 }

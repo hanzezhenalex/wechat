@@ -11,6 +11,10 @@ const (
 
 	notSupportYet       = "尚不支持当前消息类型"
 	serverInternalError = "服务器出现故障，请联系管理员"
+	userNotRegistered   = "当前用户并为注册，不能使用本服务"
+
+	duplicated   = "请勿重复上传"
+	deduplicated = "成功"
 )
 
 type Message struct {

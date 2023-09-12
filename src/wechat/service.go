@@ -16,7 +16,13 @@ type Deduplication struct {
 	store datastore.DataStore
 }
 
-func (dd *Deduplication) Handle(_ context.Context, message Message) (ret string, err error) {
+func NewDeduplication(store datastore.DataStore) *Deduplication {
+	return &Deduplication{
+		store: store,
+	}
+}
+
+func (dd *Deduplication) Handle(ctx context.Context, message Message) (ret string, err error) {
 	defer func() {
 		ret = message.TextResponse(ret)
 	}()
@@ -27,11 +33,23 @@ func (dd *Deduplication) Handle(_ context.Context, message Message) (ret string,
 		if err != nil {
 			return serverInternalError, fmt.Errorf("fail to get PicUrl, %w", err)
 		}
+
 		md5, err := getMd5FromUrl(url)
 		if err != nil {
-			return serverInternalError, fmt.Errorf("fail to get PicUrl, %w", err)
+			// TODO: fallback to download pic and cal md5
+			return serverInternalError, fmt.Errorf("fail to get md5, %w", err)
 		}
-		return md5, nil
+
+		existed, err := dd.store.CreateRecordAndCheckHash(ctx, datastore.NewRecord(md5, message.FromUserName, url))
+
+		switch {
+		case err != nil:
+			return serverInternalError, fmt.Errorf("fail to check record, %w", err)
+		case !existed:
+			return duplicated, nil
+		default:
+			return deduplicated, nil
+		}
 	default:
 		return notSupportYet, nil
 	}

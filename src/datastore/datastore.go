@@ -13,74 +13,15 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const (
-	confirmedStr         = "confirmed"
-	waitingForConfirmStr = "waitingForConfirm"
-	deniedStr            = "denied"
-	autoDeniedStr        = "autoDenied"
-	unknownStr           = "unknown"
-)
-
-const (
-	unknown RecordStatus = iota + 1
-	autoDenied
-	denied
-	waitingForConfirm
-	confirmed
-)
-
-type RecordStatus int
-
-func (rs RecordStatus) String() string {
-	switch rs {
-	case autoDenied:
-		return autoDeniedStr
-	case denied:
-		return deniedStr
-	case waitingForConfirm:
-		return waitingForConfirmStr
-	case confirmed:
-		return confirmedStr
-	}
-	return unknownStr
-}
-
-func ToRecordStatus(s string) RecordStatus {
-	switch s {
-	case autoDeniedStr:
-		return autoDenied
-	case deniedStr:
-		return denied
-	case waitingForConfirmStr:
-		return waitingForConfirm
-	case confirmedStr:
-		return confirmed
-	}
-	return unknown
-}
-
 var datastoreTracer = logrus.WithField("comp", "datastore")
-
-type Record struct {
-	ID        int       `json:"id"`
-	Hash      string    `json:"hash"`
-	Username  string    `json:"username"`
-	CreatedAt time.Time `json:"createdAt"`
-	GraphUrl  string    `json:"graph_url"`
-	Status    string    `json:"status"`
-}
-
-type RecordQueryOption struct {
-	from, to             time.Time
-	minStatus, maxStatus string
-}
 
 type DataStore interface {
 	CreateRecordAndCheckHash(ctx context.Context, record Record) (bool, error)
-	GetRecordsByLeader(ctx context.Context, leader string, option RecordQueryOption) ([]Record, error)
-	GetRecordsByUser(ctx context.Context, user string, option RecordQueryOption) ([]Record, error)
+	GetRecordsByLeader(ctx context.Context, id string, option RecordQueryOption) ([]Record, error)
+	GetRecordsByUser(ctx context.Context, id string, option RecordQueryOption) ([]Record, error)
 
-	CreateUser(ctx context.Context, username, leader string) error
+	CreateUser(ctx context.Context, new User) error
+	GetAllUsers(ctx context.Context) ([]User, error)
 
 	Close() error
 }
@@ -128,11 +69,11 @@ func (store *MysqlDatastore) prepareTables(ctx context.Context, cleanup bool) er
 			     * Lowest common denominator max URL length among popular web browsers: 2,083
 			     */
 			    graph_url VARCHAR(2083) NOT NULL,  
-			    wechat_id VARCHAR(128) NOT NULL,
+			    user_wechat_id VARCHAR(128) NOT NULL,
 			    status INT DEFAULT 2,
 			    reserve1 VARCHAR(128) DEFAULT NULL,
  			    reserve2 VARCHAR(128) DEFAULT NULL, 
-			    CONSTRAINT FOREIGN KEY(wechat_id) REFERENCES users(wechat_id),
+			    CONSTRAINT FOREIGN KEY(user_wechat_id) REFERENCES users(wechat_id),
 			    INDEX (hash)
 			) ENGINE=Innodb DEFAULT CHARACTER SET=utf8;
 		`
@@ -140,7 +81,7 @@ func (store *MysqlDatastore) prepareTables(ctx context.Context, cleanup bool) er
 			CREATE TABLE IF NOT EXISTS users(
 			    wechat_id VARCHAR(128) NOT NULL PRIMARY KEY,
 			    username VARCHAR(64),
-			    leader VARCHAR(64),
+			    leader_wechat_id VARCHAR(64),
 			    active BOOLEAN DEFAULT true,
 			    reserve VARCHAR(128)
 			) ENGINE=Innodb DEFAULT CHARACTER SET=utf8;
@@ -169,28 +110,107 @@ func (store *MysqlDatastore) prepareTables(ctx context.Context, cleanup bool) er
 	return nil
 }
 
-func (store *MysqlDatastore) GetRecordsByLeader(ctx context.Context, leader string, option RecordQueryOption) ([]Record, error) {
+func (store *MysqlDatastore) Close() error {
+	return store.db.Close()
+}
+
+/*
+ *
+ * CURD for Record
+ *
+ */
+
+type Record struct {
+	ID           int       `json:"id"`
+	Hash         string    `json:"hash"`
+	UserWechatId string    `json:"user_wechat_id"`
+	CreatedAt    time.Time `json:"createdAt"`
+	GraphUrl     string    `json:"graph_url"`
+	Status       string    `json:"status"`
+}
+
+func NewRecord(hash string, id string, url string) Record {
+	return Record{
+		Hash:         hash,
+		UserWechatId: id,
+		GraphUrl:     url,
+		Status:       waitingForConfirmStr,
+	}
+}
+
+type RecordQueryOption struct {
+	from, to             time.Time
+	minStatus, maxStatus string
+}
+
+const (
+	confirmedStr         = "confirmed"
+	waitingForConfirmStr = "waitingForConfirm"
+	deniedStr            = "denied"
+	autoDeniedStr        = "autoDenied"
+	unknownStr           = "unknown"
+)
+
+type RecordStatus int
+
+const (
+	unknown RecordStatus = iota + 1
+	autoDenied
+	denied
+	waitingForConfirm
+	confirmed
+)
+
+func (rs RecordStatus) String() string {
+	switch rs {
+	case autoDenied:
+		return autoDeniedStr
+	case denied:
+		return deniedStr
+	case waitingForConfirm:
+		return waitingForConfirmStr
+	case confirmed:
+		return confirmedStr
+	}
+	return unknownStr
+}
+
+func ToRecordStatus(s string) RecordStatus {
+	switch s {
+	case autoDeniedStr:
+		return autoDenied
+	case deniedStr:
+		return denied
+	case waitingForConfirmStr:
+		return waitingForConfirm
+	case confirmedStr:
+		return confirmed
+	}
+	return unknown
+}
+
+func (store *MysqlDatastore) GetRecordsByLeader(ctx context.Context, leaderId string, option RecordQueryOption) ([]Record, error) {
 	const (
 		queryByLeader = `
 			SELECT 
 			    target_records.id AS id,
-			    target_records.username AS username, 
+			    target_records.user_wechat_id AS user_wechat_id, 
 			    target_records.graph_url AS graph_url, 
 			    target_records.created_at AS created_at,
 				target_records.status AS status
 			FROM 
 			    (
 					SELECT
-						username
+						wechat_id
 					FROM
 						users
 					WHERE 
-						leader = ?
+						leader_wechat_id = ?
 				)	AS target_users
 			LEFT JOIN 
 				(
 				    SELECT
-				        id, username, graph_url, created_at, status
+				        id, user_wechat_id, graph_url, created_at, status
 				    FROM 
 				        records
 				    WHERE 
@@ -200,13 +220,13 @@ func (store *MysqlDatastore) GetRecordsByLeader(ctx context.Context, leader stri
 						AND created_at <= ?
 				) AS target_records
 			ON
-				target_records.username = target_users.username
+				target_records.user_wechat_id = target_users.wechat_id
 			WHERE 
 			    target_records.graph_url IS NOT NULL
 		`
 	)
 
-	rows, err := store.db.QueryContext(ctx, queryByLeader, leader, ToRecordStatus(option.minStatus),
+	rows, err := store.db.QueryContext(ctx, queryByLeader, leaderId, ToRecordStatus(option.minStatus),
 		ToRecordStatus(option.maxStatus), option.from, option.to)
 	if err != nil {
 		return nil, fmt.Errorf("fail to query db, %w", err)
@@ -214,30 +234,30 @@ func (store *MysqlDatastore) GetRecordsByLeader(ctx context.Context, leader stri
 
 	var records []Record
 	for rows.Next() {
-		var username, graphUrl string
+		var userWechatId, graphUrl string
 		var createdAt time.Time
 		var status RecordStatus
 		var id int
 
-		if err := rows.Scan(&id, &username, &graphUrl, &createdAt, &status); err != nil {
+		if err := rows.Scan(&id, &userWechatId, &graphUrl, &createdAt, &status); err != nil {
 			return nil, fmt.Errorf("fail scan records from rows, %w", err)
 		}
 		records = append(records, Record{
-			ID:        id,
-			CreatedAt: createdAt,
-			Username:  username,
-			GraphUrl:  graphUrl,
-			Status:    status.String(),
+			ID:           id,
+			CreatedAt:    createdAt,
+			UserWechatId: userWechatId,
+			GraphUrl:     graphUrl,
+			Status:       status.String(),
 		})
 	}
 	return records, nil
 }
 
-func (store *MysqlDatastore) GetRecordsByUser(ctx context.Context, user string, option RecordQueryOption) ([]Record, error) {
+func (store *MysqlDatastore) GetRecordsByUser(ctx context.Context, id string, option RecordQueryOption) ([]Record, error) {
 	const (
 		queryByUser = `
 			SELECT
-				username, graph_url, created_at, status
+				user_wechat_id, graph_url, created_at, status
 			FROM 
 				records
 			WHERE 
@@ -245,12 +265,12 @@ func (store *MysqlDatastore) GetRecordsByUser(ctx context.Context, user string, 
 				AND status <= ?
 				AND created_at >= ?
 				AND created_at <= ?
-				AND username = ?
+				AND user_wechat_id = ?
 		`
 	)
 
 	rows, err := store.db.QueryContext(ctx, queryByUser, ToRecordStatus(option.minStatus),
-		ToRecordStatus(option.maxStatus), option.from, option.to, user)
+		ToRecordStatus(option.maxStatus), option.from, option.to, id)
 	if err != nil {
 		return nil, fmt.Errorf("fail to query db, %w", err)
 	}
@@ -265,10 +285,10 @@ func (store *MysqlDatastore) GetRecordsByUser(ctx context.Context, user string, 
 			return nil, fmt.Errorf("fail scan records from rows, %w", err)
 		}
 		records = append(records, Record{
-			CreatedAt: createdAt,
-			Username:  username,
-			GraphUrl:  graphUrl,
-			Status:    status.String(),
+			CreatedAt:    createdAt,
+			UserWechatId: username,
+			GraphUrl:     graphUrl,
+			Status:       status.String(),
 		})
 	}
 	return records, nil
@@ -277,14 +297,14 @@ func (store *MysqlDatastore) GetRecordsByUser(ctx context.Context, user string, 
 func (store *MysqlDatastore) CreateRecordAndCheckHash(ctx context.Context, record Record) (bool, error) {
 	const insertRecord = `
 		INSERT INTO 
-			records(hash, graph_url, username, status)
+			records(hash, graph_url, user_wechat_id, status)
 		VALUES 
 		    (?, ?, ?, ?)
 	`
 
 	const insertRecordWhenHashNotExist = `
 		INSERT INTO 
-			records(hash, graph_url, username, status)
+			records(hash, graph_url, user_wechat_id, status)
 		SELECT 
 			?, ?, ?, ?
 		FROM 
@@ -294,7 +314,7 @@ func (store *MysqlDatastore) CreateRecordAndCheckHash(ctx context.Context, recor
 
 	status := ToRecordStatus(record.Status)
 	if status == waitingForConfirm {
-		rows, err := store.db.ExecContext(ctx, insertRecordWhenHashNotExist, record.Hash, record.GraphUrl, record.Username, status, record.Hash)
+		rows, err := store.db.ExecContext(ctx, insertRecordWhenHashNotExist, record.Hash, record.GraphUrl, record.UserWechatId, status, record.Hash)
 		if err != nil {
 			return false, fmt.Errorf("fail to exec insert sql, %w", err)
 		}
@@ -305,21 +325,34 @@ func (store *MysqlDatastore) CreateRecordAndCheckHash(ctx context.Context, recor
 			status = autoDenied
 		}
 	}
-	_, err := store.db.ExecContext(ctx, insertRecord, record.Hash, record.GraphUrl, record.Username, status)
+	_, err := store.db.ExecContext(ctx, insertRecord, record.Hash, record.GraphUrl, record.UserWechatId, status)
 	if err != nil {
 		return false, fmt.Errorf("fail to exec insert sql, %w", err)
 	}
 	return true, nil
 }
 
-func (store *MysqlDatastore) CreateUser(ctx context.Context, username, leader string) error {
+/*
+ *
+ * CURD for Users
+ *
+ */
+
+type User struct {
+	Username string `json:"username"`
+	WechatId string `json:"wechat_id"`
+	Leader   string `json:"leader"`
+	Active   bool   `json:"active"`
+}
+
+func (store *MysqlDatastore) CreateUser(ctx context.Context, user User) error {
 	const insertUser = `
 		INSERT IGNORE INTO 
-			users(username, leader)
+			users(username, leader, wechat_id)
 		VALUES 
-		    (?, ?)
+		    (?, ?, ?)
 	`
-	rows, err := store.db.ExecContext(ctx, insertUser, username, leader)
+	rows, err := store.db.ExecContext(ctx, insertUser, user.Username, user.Leader, user.WechatId)
 	if err != nil {
 		return fmt.Errorf("fail to insert user, %w", err)
 	}
@@ -331,6 +364,27 @@ func (store *MysqlDatastore) CreateUser(ctx context.Context, username, leader st
 	return nil
 }
 
-func (store *MysqlDatastore) Close() error {
-	return store.db.Close()
+func (store *MysqlDatastore) GetUserByWechatId(ctx context.Context, id string) (User, error) {
+	var user User
+	const query = `
+		SELECT 
+			username, leader
+		FROM
+			users
+		WHERE
+			active = true
+		    AND wechat_id = ?
+	`
+	row := store.db.QueryRowContext(ctx, query, id)
+	if row.Err() != nil {
+		return user, fmt.Errorf("fail to query user, %w", row.Err())
+	}
+	if err := row.Scan(&user.Username, &user.Leader); err != nil {
+		return user, fmt.Errorf("fail to read row from user query result, %w", row.Err())
+	}
+	return user, nil
+}
+
+func (store *MysqlDatastore) GetAllUsers(ctx context.Context) ([]User, error) {
+	return []User{}, nil
 }

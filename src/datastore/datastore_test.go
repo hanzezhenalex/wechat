@@ -32,36 +32,44 @@ func TestMysqlDatastore(t *testing.T) {
 	mysql, err := NewMysqlDatastore(ctx, cfg, true)
 	rq.NoError(err)
 
-	rq.NoError(mysql.CreateUser(ctx, "leader_1", ""))
-	rq.NoError(mysql.CreateUser(ctx, "user_1", "leader_1"))
-	rq.NoError(mysql.CreateUser(ctx, "user_2", "leader_1"))
+	rq.NoError(mysql.CreateUser(ctx, User{
+		WechatId: "leader_1",
+	}))
+	rq.NoError(mysql.CreateUser(ctx, User{
+		WechatId: "user_1",
+		Leader:   "leader_1",
+	}))
+	rq.NoError(mysql.CreateUser(ctx, User{
+		WechatId: "user_2",
+		Leader:   "leader_1",
+	}))
 
 	var records = []Record{
 		{
-			Username: "leader_1",
-			Hash:     "hash0",
-			GraphUrl: "http://www.baidu.com",
-			Status:   confirmedStr,
+			UserWechatId: "leader_1",
+			Hash:         "hash0",
+			GraphUrl:     "http://www.baidu.com",
+			Status:       confirmedStr,
 		},
 		{
-			Username: "user_1",
-			Hash:     "hash1",
-			GraphUrl: "http://www.baidu.com",
+			UserWechatId: "user_1",
+			Hash:         "hash1",
+			GraphUrl:     "http://www.baidu.com",
 		},
 		{
-			Username: "user_1",
-			Hash:     "hash2",
-			GraphUrl: "http://www.baidu.com",
+			UserWechatId: "user_1",
+			Hash:         "hash2",
+			GraphUrl:     "http://www.baidu.com",
 		},
 		{
-			Username: "user_2",
-			Hash:     "hash3",
-			GraphUrl: "http://www.baidu.com",
+			UserWechatId: "user_2",
+			Hash:         "hash3",
+			GraphUrl:     "http://www.baidu.com",
 		},
 		{
-			Username: "user_2",
-			Hash:     "hash4",
-			GraphUrl: "http://www.baidu.com",
+			UserWechatId: "user_2",
+			Hash:         "hash4",
+			GraphUrl:     "http://www.baidu.com",
 		},
 	}
 
