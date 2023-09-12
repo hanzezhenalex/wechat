@@ -46,10 +46,10 @@ func main() {
 
 	wechatGroup := r.Group("/wechat")
 	wechatGroup.Use(wechat.IsWechat(cfg))
-	wechatGroup.GET("/wechat", wechat.HealthCheck())
-	wechatGroup.POST("/wechat", c.Handler())
+	wechatGroup.GET("/portal", wechat.HealthCheck())
+	wechatGroup.POST("/portal", c.Handler())
 
-	c.RegisterEndpoints(r.Group("/api/v1"))
+	c.RegisterEndpoints(r.Group("/internal/api/v1"))
 
 	if err := r.Run(":3000"); err != nil {
 		panic(err)

@@ -62,7 +62,7 @@ func (c *coordinator) Handler() gin.HandlerFunc {
 
 func (c *coordinator) RegisterEndpoints(group *gin.RouterGroup) {
 	group.POST("/usm/create", func(context *gin.Context) {
-		auth := context.Request.URL.Query().Get("x-alex-auth")
+		auth := context.Request.Header.Get("x-alex-auth")
 		if auth != src.DefaultApiToken {
 			context.Writer.WriteHeader(http.StatusUnauthorized)
 			return
