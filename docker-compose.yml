@@ -19,7 +19,7 @@ services:
     depends_on:
       - mysql
     volumes:
-      - /home/ccloud/wechat/config.json:/usr/app/config.json
+      - /home/ccloud/wechat:/usr/app/wechat
     ports:
       - "8096:8096"
     command:
