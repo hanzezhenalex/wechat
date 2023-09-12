@@ -1,9 +1,11 @@
 package src
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"os"
+	"github.com/sirupsen/logrus"
+	"io/ioutil"
 )
 
 const defaultDatabase = "wechat"
@@ -17,8 +19,10 @@ type DbConfig struct {
 
 func (dbCfg DbConfig) Dns() string {
 	// "username:password@tcp(host:post)/dbname"
-	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&loc=Local",
+	dns := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&loc=Local",
 		dbCfg.Username, dbCfg.Password, dbCfg.Host, dbCfg.Port, defaultDatabase)
+	logrus.Infof("dns: %s", dns)
+	return dns
 }
 
 type Config struct {
@@ -30,11 +34,13 @@ type Config struct {
 
 func NewConfigFromFile(path string) (Config, error) {
 	var cfg Config
-	f, err := os.Open(path)
+	raw, err := ioutil.ReadFile(path)
 	if err != nil {
 		return cfg, fmt.Errorf("fail to read config file, %w", err)
 	}
-	if err := json.NewDecoder(f).Decode(&cfg); err != nil {
+	logrus.Infof("config: %s", string(raw))
+
+	if err := json.NewDecoder(bytes.NewBuffer(raw)).Decode(&cfg); err != nil {
 		return cfg, fmt.Errorf("fail to decode config file, %w", err)
 	}
 	return cfg, err

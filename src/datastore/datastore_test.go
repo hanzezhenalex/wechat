@@ -20,6 +20,7 @@ func TestMysqlDatastore(t *testing.T) {
 	rq := require.New(t)
 	ctx := context.Background()
 
+	// TODO: read if from config?
 	cfg := src.Config{
 		DbConfig: src.DbConfig{
 			Host:     "10.237.150.156",
@@ -29,6 +30,7 @@ func TestMysqlDatastore(t *testing.T) {
 		},
 	}
 
+	// TODO: make it a global one
 	mysql, err := NewMysqlDatastore(ctx, cfg, true)
 	rq.NoError(err)
 
