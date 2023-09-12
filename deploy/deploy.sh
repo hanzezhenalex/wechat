@@ -2,7 +2,7 @@
 
 set -exo pipefail
 
-DOCKER_MYSQL_NAME="mysql-for-wechat"
+export DOCKER_MYSQL_NAME="mysql-for-wechat"
 WECHAT_SERVER_NAME="wechat"
 DOCKER_NETWORK="wechatService"
 
@@ -41,6 +41,8 @@ if [ -z "${USE_DOCKER_COMPOSE}" ]; then
     -v /home/mysql/data:/var/lib/mysql \
     --network "${DOCKER_NETWORK}" \
     mysql/mysql-server:latest
+
+  source ./deploy/db.sh
 
   make docker_wechat_server
 

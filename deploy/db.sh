@@ -28,7 +28,7 @@ docker_mysql_db="wechat"
 # prepare db
 echo "create database ${docker_mysql_db}"
 docker exec "${docker_mysql_id}" mysql -u"${MYSQL_ROOT_USER}" -p"${MYSQL_ROOT_PASSWORD}" \
-  -e "CREATE DATABASE IF NOT EXISTS ${docker_mysql_db};"
+ -e "CREATE DATABASE IF NOT EXISTS ${docker_mysql_db};"
 
 echo "grant full privilege for ${MYSQL_USER} on wechat"
 docker exec "${docker_mysql_id}" mysql -u"${MYSQL_ROOT_USER}" -p"${MYSQL_ROOT_PASSWORD}" \
