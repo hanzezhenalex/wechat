@@ -11,3 +11,11 @@ services:
       - /home/mysql/data:/var/lib/mysql
     container_name:
       mysql-for-wechat
+  wechat:
+    build: .
+    restart: always
+    container_name: wechat_server
+    depends_on:
+      - mysql
+    ports:
+      - "8096:8096"
