@@ -1,4 +1,4 @@
-version: "3.8"
+version: "3.3"
 services:
   mysql:
     image: mysql/mysql-server:latest
@@ -7,6 +7,7 @@ services:
       MYSQL_USER: 'sergey'
       MYSQL_PASSWORD: 'sergey'
       MYSQL_ROOT_PASSWORD: 'sergey'
+      MYSQL_DATABASE: 'wechat'
     volumes:
       - /home/mysql/data:/var/lib/mysql
     container_name:
@@ -17,5 +18,9 @@ services:
     container_name: wechat_server
     depends_on:
       - mysql
+    volumes:
+      - /home/wechat/config.json:/usr/app/config.json
     ports:
       - "8096:8096"
+    command:
+      - "--config /usr/app/config.json"
