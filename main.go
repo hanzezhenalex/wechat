@@ -43,10 +43,11 @@ func main() {
 	}
 
 	r := gin.Default()
-	r.Use(wechat.IsWechat(cfg))
 
-	r.GET("/wechat", wechat.HealthCheck())
-	r.POST("/wechat", c.Handler())
+	wechatGroup := r.Group("/wechat")
+	wechatGroup.Use(wechat.IsWechat(cfg))
+	wechatGroup.GET("/wechat", wechat.HealthCheck())
+	wechatGroup.POST("/wechat", c.Handler())
 
 	c.RegisterEndpoints(r.Group("/api/v1"))
 

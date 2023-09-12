@@ -39,3 +39,5 @@ func NewConfigFromFile(path string) (Config, error) {
 	}
 	return cfg, err
 }
+
+const DefaultApiToken = "hanzezhentest"

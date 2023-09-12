@@ -62,6 +62,12 @@ func (c *coordinator) Handler() gin.HandlerFunc {
 
 func (c *coordinator) RegisterEndpoints(group *gin.RouterGroup) {
 	group.POST("/usm/create", func(context *gin.Context) {
+		auth := context.Request.URL.Query().Get("x-alex-auth")
+		if auth != src.DefaultApiToken {
+			context.Writer.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
 		var user datastore.User
 		if err := json.NewDecoder(context.Request.Body).Decode(&user); err != nil {
 			_, _ = context.Writer.Write([]byte(err.Error()))
