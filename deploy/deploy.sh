@@ -8,7 +8,7 @@ WECHAT_SERVER_NAME="wechat"
 if [ -z "${USE_DOCKER_COMPOSE}" ]; then
   echo "deploy by docker"
 
-  docker run -d --name "${DOCKER_MYSQL_NAME}" \
+  docker run -d --rm --name "${DOCKER_MYSQL_NAME}" \
     -e MYSQL_ROOT_PASSWORD=sergey \
     -e MYSQL_DATABASE=wechat \
     -e MYSQL_USER=sergey \
@@ -29,7 +29,7 @@ if [ -z "${USE_DOCKER_COMPOSE}" ]; then
   \"password\": \"sergey\"
 }" > './config_wechat.json'
 
-  docker run -d --name "${WECHAT_SERVER_NAME}" -p 8096:8096 \
+  docker run -d --rm --name "${WECHAT_SERVER_NAME}" -p 8096:8096 \
     --network container:"${DOCKER_MYSQL_NAME}" \
     alex/wechat_server:latest -c './config_wechat.json'
 
