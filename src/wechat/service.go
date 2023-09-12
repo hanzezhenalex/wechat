@@ -40,7 +40,7 @@ func (dd *Deduplication) Handle(ctx context.Context, message Message) (ret strin
 			return serverInternalError, fmt.Errorf("fail to get md5, %w", err)
 		}
 
-		existed, err := dd.store.CreateRecordAndCheckHash(ctx, datastore.NewRecord(md5, message.FromUserName, url))
+		existed, err := dd.store.CreateRecordAndCheckIfHashExist(ctx, datastore.NewRecord(md5, message.FromUserName, url))
 
 		switch {
 		case err != nil:

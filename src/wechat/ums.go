@@ -17,13 +17,16 @@ type UserMngr struct {
 	cache sync.Map // wechat_id -> User
 	store datastore.DataStore
 
-	// one request one time, blocking others
+	// once a time for each user req, blocking others
 	updating map[string]*item
 	mutex    sync.Mutex
 }
 
 func NewUMS(store datastore.DataStore) (*UserMngr, error) {
-	usm := &UserMngr{store: store}
+	usm := &UserMngr{
+		store:    store,
+		updating: make(map[string]*item),
+	}
 	users, err := store.GetAllUsers(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("fail to get all users from datastore, %w", err)
@@ -73,5 +76,8 @@ func (ums *UserMngr) CreateNewUser(ctx context.Context, user datastore.User) err
 
 func (ums *UserMngr) GetUserById(_ context.Context, id string) (datastore.User, bool) {
 	val, loaded := ums.cache.Load(id)
-	return val.(datastore.User), loaded
+	if !loaded {
+		return datastore.User{}, false
+	}
+	return val.(datastore.User), true
 }

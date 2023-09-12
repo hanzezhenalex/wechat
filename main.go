@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"os"
 
 	"github.com/hanzezhenalex/wechat/src"
@@ -12,11 +13,21 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const defaultConfigFilePath = "./config.json"
+
+var configFilePath string
+
+func init() {
+	flag.StringVar(&configFilePath, "config", defaultConfigFilePath, "config file path")
+
+	flag.Parse()
+}
+
 func main() {
-	cfg := src.Config{
-		Token:     "sdaregsghsd",
-		AppID:     "wxa1e850de1191bd56",
-		AppSecret: "3c87533a8b1902e37d08c5f60106bfe9",
+	cfg, err := src.NewConfigFromFile(configFilePath)
+	if err != nil {
+		logrus.Errorf("fail to read config, err=%s", err.Error())
+		os.Exit(1)
 	}
 
 	store, err := datastore.NewMysqlDatastore(context.Background(), cfg, true)

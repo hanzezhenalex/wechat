@@ -16,7 +16,7 @@ import (
 var datastoreTracer = logrus.WithField("comp", "datastore")
 
 type DataStore interface {
-	CreateRecordAndCheckHash(ctx context.Context, record Record) (bool, error)
+	CreateRecordAndCheckIfHashExist(ctx context.Context, record Record) (bool, error)
 	GetRecordsByLeader(ctx context.Context, id string, option RecordQueryOption) ([]Record, error)
 	GetRecordsByUser(ctx context.Context, id string, option RecordQueryOption) ([]Record, error)
 
@@ -294,7 +294,7 @@ func (store *MysqlDatastore) GetRecordsByUser(ctx context.Context, id string, op
 	return records, nil
 }
 
-func (store *MysqlDatastore) CreateRecordAndCheckHash(ctx context.Context, record Record) (bool, error) {
+func (store *MysqlDatastore) CreateRecordAndCheckIfHashExist(ctx context.Context, record Record) (bool, error) {
 	const insertRecord = `
 		INSERT INTO 
 			records(hash, graph_url, user_wechat_id, status)
@@ -313,6 +313,8 @@ func (store *MysqlDatastore) CreateRecordAndCheckHash(ctx context.Context, recor
 	`
 
 	status := ToRecordStatus(record.Status)
+	duplicated := false
+
 	if status == waitingForConfirm {
 		rows, err := store.db.ExecContext(ctx, insertRecordWhenHashNotExist, record.Hash, record.GraphUrl, record.UserWechatId, status, record.Hash)
 		if err != nil {
@@ -323,13 +325,14 @@ func (store *MysqlDatastore) CreateRecordAndCheckHash(ctx context.Context, recor
 			return true, nil
 		} else {
 			status = autoDenied
+			duplicated = true
 		}
 	}
 	_, err := store.db.ExecContext(ctx, insertRecord, record.Hash, record.GraphUrl, record.UserWechatId, status)
 	if err != nil {
 		return false, fmt.Errorf("fail to exec insert sql, %w", err)
 	}
-	return true, nil
+	return !duplicated, nil
 }
 
 /*
@@ -341,18 +344,18 @@ func (store *MysqlDatastore) CreateRecordAndCheckHash(ctx context.Context, recor
 type User struct {
 	Username string `json:"username"`
 	WechatId string `json:"wechat_id"`
-	Leader   string `json:"leader"`
+	LeaderId string `json:"leader_id"`
 	Active   bool   `json:"active"`
 }
 
 func (store *MysqlDatastore) CreateUser(ctx context.Context, user User) error {
 	const insertUser = `
 		INSERT IGNORE INTO 
-			users(username, leader, wechat_id)
+			users(username, leader_wechat_id, wechat_id)
 		VALUES 
 		    (?, ?, ?)
 	`
-	rows, err := store.db.ExecContext(ctx, insertUser, user.Username, user.Leader, user.WechatId)
+	rows, err := store.db.ExecContext(ctx, insertUser, user.Username, user.LeaderId, user.WechatId)
 	if err != nil {
 		return fmt.Errorf("fail to insert user, %w", err)
 	}
@@ -368,7 +371,7 @@ func (store *MysqlDatastore) GetUserByWechatId(ctx context.Context, id string) (
 	var user User
 	const query = `
 		SELECT 
-			username, leader
+			username, wechat_id, leader_wechat_id
 		FROM
 			users
 		WHERE
@@ -379,7 +382,7 @@ func (store *MysqlDatastore) GetUserByWechatId(ctx context.Context, id string) (
 	if row.Err() != nil {
 		return user, fmt.Errorf("fail to query user, %w", row.Err())
 	}
-	if err := row.Scan(&user.Username, &user.Leader); err != nil {
+	if err := row.Scan(&user.Username, &user.WechatId, &user.LeaderId); err != nil {
 		return user, fmt.Errorf("fail to read row from user query result, %w", row.Err())
 	}
 	return user, nil
