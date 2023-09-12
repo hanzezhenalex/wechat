@@ -34,7 +34,7 @@ func (c *coordinator) Handler() gin.HandlerFunc {
 		}
 		_ = context.Request.Body.Close()
 
-		ret, err := c.svc.Handle(msg)
+		ret, err := c.svc.Handle(context.Request.Context(), msg)
 		if err != nil {
 			cTracer.Errorf("fail to process message, %s", err.Error())
 			ret = serverInternalError
