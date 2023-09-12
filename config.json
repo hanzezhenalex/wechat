@@ -2,7 +2,7 @@
   "token": "sdaregsghsd",
   "app_id": "wxa1e850de1191bd56",
   "app_secret": "3c87533a8b1902e37d08c5f60106bfe9",
-  "host":     "10.237.150.156",
+  "host":     "mysql",
   "port":     3306,
   "username": "sergey",
   "password": "sergey"

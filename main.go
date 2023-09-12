@@ -51,7 +51,7 @@ func main() {
 	r := gin.Default()
 	registerRoutes(r, c, cfg)
 
-	if err := r.Run(":3000"); err != nil {
+	if err := r.Run("localhost:8096"); err != nil {
 		logrus.Errorf("fail to run gin server, err=%s", err.Error())
 		os.Exit(1)
 	}
