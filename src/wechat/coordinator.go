@@ -19,7 +19,8 @@ type coordinator struct {
 
 func NewCoordinator(cfg src.Config) *coordinator {
 	return &coordinator{
-		tm: NewTokenManager(cfg),
+		tm:  NewTokenManager(cfg),
+		svc: &Deduplication{},
 	}
 }
 
