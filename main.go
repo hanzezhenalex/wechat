@@ -13,7 +13,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const defaultConfigFilePath = "./config.json"
+const (
+	defaultConfigFilePath = "./config.json"
+
+	internalV1Group = "/internal/api/v1"
+	wechatGroup     = "/wechat"
+	portal          = "/portal"
+)
 
 var configFilePath string
 
@@ -30,7 +36,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	store, err := datastore.NewMysqlDatastore(context.Background(), cfg, true)
+	store, err := datastore.NewMysqlDatastore(context.Background(), cfg, false)
 	if err != nil {
 		logrus.Errorf("fail to create mysql datastore, err=%s", err.Error())
 		os.Exit(1)
@@ -43,15 +49,19 @@ func main() {
 	}
 
 	r := gin.Default()
-
-	wechatGroup := r.Group("/wechat")
-	wechatGroup.Use(wechat.IsWechat(cfg))
-	wechatGroup.GET("/portal", wechat.HealthCheck())
-	wechatGroup.POST("/portal", c.Handler())
-
-	c.RegisterEndpoints(r.Group("/internal/api/v1"))
+	registerRoutes(r, c, cfg)
 
 	if err := r.Run(":3000"); err != nil {
-		panic(err)
+		logrus.Errorf("fail to run gin server, err=%s", err.Error())
+		os.Exit(1)
 	}
+}
+
+func registerRoutes(r *gin.Engine, c *wechat.Coordinator, cfg src.Config) {
+	wechatG := r.Group(wechatGroup)
+	wechatG.Use(wechat.IsWechat(cfg))
+	wechatG.GET(portal, wechat.HealthCheck())
+	wechatG.POST(portal, c.Handler())
+
+	c.RegisterEndpoints(r.Group(internalV1Group))
 }

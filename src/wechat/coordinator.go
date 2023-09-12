@@ -15,14 +15,14 @@ import (
 
 var cTracer = logrus.WithField("comp", "coordinator")
 
-type coordinator struct {
+type Coordinator struct {
 	ums *UserMngr
 	svc Service
 	tm  *tokenManager
 }
 
-func NewCoordinator(cfg src.Config, store datastore.DataStore) (*coordinator, error) {
-	c := &coordinator{
+func NewCoordinator(cfg src.Config, store datastore.DataStore) (*Coordinator, error) {
+	c := &Coordinator{
 		tm:  NewTokenManager(cfg),
 		svc: NewDeduplication(store),
 	}
@@ -34,7 +34,7 @@ func NewCoordinator(cfg src.Config, store datastore.DataStore) (*coordinator, er
 	return c, nil
 }
 
-func (c *coordinator) Handler() gin.HandlerFunc {
+func (c *Coordinator) Handler() gin.HandlerFunc {
 	return func(context *gin.Context) {
 		var msg Message
 		if err := xml.NewDecoder(context.Request.Body).Decode(&msg); err != nil {
@@ -60,8 +60,8 @@ func (c *coordinator) Handler() gin.HandlerFunc {
 	}
 }
 
-func (c *coordinator) RegisterEndpoints(group *gin.RouterGroup) {
-	group.POST("/usm/create", func(context *gin.Context) {
+func (c *Coordinator) RegisterEndpoints(group *gin.RouterGroup) {
+	group.POST("/ums/create", func(context *gin.Context) {
 		auth := context.Request.Header.Get("x-alex-auth")
 		if auth != src.DefaultApiToken {
 			context.Writer.WriteHeader(http.StatusUnauthorized)
