@@ -52,6 +52,7 @@ func main() {
 		os.Exit(1)
 	}
 
+
 	if err := startGin(cfg, c); err != nil {
 		logrus.Errorf("fail to run gin server, err=%s", err.Error())
 		os.Exit(1)
