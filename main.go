@@ -21,10 +21,14 @@ const (
 	portal          = "/portal"
 )
 
-var configFilePath string
+var (
+	configFilePath string
+	debug          bool
+)
 
 func init() {
 	flag.StringVar(&configFilePath, "config", defaultConfigFilePath, "config file path")
+	flag.BoolVar(&debug, "debug", false, "debug mode")
 
 	flag.Parse()
 }
@@ -48,13 +52,33 @@ func main() {
 		os.Exit(1)
 	}
 
-	r := gin.Default()
-	registerRoutes(r, c, cfg)
 
-	if err := r.Run(":8096"); err != nil {
+	if err := startGin(cfg, c); err != nil {
 		logrus.Errorf("fail to run gin server, err=%s", err.Error())
 		os.Exit(1)
 	}
+
+}
+
+func startGin(cfg src.Config, c *wechat.Coordinator) error {
+	eng := gin.New()
+	eng.Use(gin.Recovery(), src.TracerMiddleware())
+
+	if debug == false {
+		gin.SetMode(gin.ReleaseMode)
+		logrus.SetLevel(logrus.InfoLevel)
+	} else {
+		gin.SetMode(gin.DebugMode)
+		logrus.SetLevel(logrus.DebugLevel)
+	}
+
+	logrus.SetFormatter(&logrus.TextFormatter{
+		TimestampFormat: "2006-01-02 15:04:05",
+	})
+
+	registerRoutes(eng, c, cfg)
+
+	return eng.Run(":8096")
 }
 
 func registerRoutes(r *gin.Engine, c *wechat.Coordinator, cfg src.Config) {

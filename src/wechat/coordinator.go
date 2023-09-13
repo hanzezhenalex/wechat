@@ -1,7 +1,7 @@
 package wechat
 
 import (
-	"encoding/json"
+	"context"
 	"encoding/xml"
 	"fmt"
 	"net/http"
@@ -13,7 +13,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var cTracer = logrus.WithField("comp", "coordinator")
+var cTracer = func(ctx context.Context) *logrus.Entry {
+	return logrus.WithField("comp", "coordinator").WithContext(ctx)
+}
 
 type Coordinator struct {
 	ums *UserMngr
@@ -36,47 +38,35 @@ func NewCoordinator(cfg src.Config, store datastore.DataStore) (*Coordinator, er
 
 func (c *Coordinator) Handler() gin.HandlerFunc {
 	return func(context *gin.Context) {
+		ctx := context.Request.Context()
+		tracer := cTracer(ctx)
+
 		var msg Message
 		if err := xml.NewDecoder(context.Request.Body).Decode(&msg); err != nil {
-			cTracer.Errorf("fail to decode request body, %s", err.Error())
+			tracer.Errorf("fail to decode request body, %s", err.Error())
 			context.Writer.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		_ = context.Request.Body.Close()
-
-		ctx := context.Request.Context()
+		tracer.Infof("new message from %s", msg.FromUserName)
 
 		if _, ok := c.ums.GetUserById(ctx, msg.FromUserName); !ok {
+			tracer.Warningf("message rejected, user %s not register", msg.FromUserName)
 			_, _ = context.Writer.WriteString(msg.TextResponse(userNotRegistered))
 			return
 		}
 
 		ret, err := c.svc.Handle(ctx, msg)
 		if err != nil {
-			cTracer.Errorf("fail to process message, %s", err.Error())
-			ret = msg.TextResponse(serverInternalError)
+			tracer.Errorf("fail to process message, %s", err.Error())
+			ret = msg.TextResponse(fmt.Sprintf("%s, trace_id=%s", serverInternalError, src.GetTraceId(ctx)))
 		}
+
+		tracer.Debug("message processed successfully")
 		_, _ = context.Writer.WriteString(ret)
 	}
 }
 
 func (c *Coordinator) RegisterEndpoints(group *gin.RouterGroup) {
-	group.POST("/ums/create", func(context *gin.Context) {
-		auth := context.Request.Header.Get("x-alex-auth")
-		if auth != src.DefaultApiToken {
-			context.Writer.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-
-		var user datastore.User
-		if err := json.NewDecoder(context.Request.Body).Decode(&user); err != nil {
-			_, _ = context.Writer.Write([]byte(err.Error()))
-			context.Writer.WriteHeader(http.StatusInternalServerError)
-		}
-		if err := c.ums.CreateNewUser(context.Request.Context(), user); err != nil {
-			_, _ = context.Writer.Write([]byte(err.Error()))
-			context.Writer.WriteHeader(http.StatusInternalServerError)
-		}
-		context.Writer.WriteHeader(http.StatusOK)
-	})
+	c.ums.RegisterEndpoints(group.Group("/ums"))
 }

@@ -2,11 +2,21 @@ package wechat
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"sync"
 
+	"github.com/hanzezhenalex/wechat/src"
+
+	"github.com/gin-gonic/gin"
 	"github.com/hanzezhenalex/wechat/src/datastore"
+	"github.com/sirupsen/logrus"
 )
+
+var umsTracer = func(ctx context.Context) *logrus.Entry {
+	return logrus.WithField("comp", "ums").WithContext(ctx)
+}
 
 type item struct {
 	wg *sync.WaitGroup
@@ -80,4 +90,32 @@ func (ums *UserMngr) GetUserById(_ context.Context, id string) (datastore.User, 
 		return datastore.User{}, false
 	}
 	return val.(datastore.User), true
+}
+
+func (ums *UserMngr) RegisterEndpoints(group *gin.RouterGroup) {
+	group.POST("/create", func(context *gin.Context) {
+		tracer := umsTracer(context.Request.Context())
+
+		auth := context.Request.Header.Get("x-alex-auth")
+		if auth != src.DefaultApiToken {
+			tracer.Warningf("req rejected, invalid auth token")
+			context.Writer.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		var user datastore.User
+		if err := json.NewDecoder(context.Request.Body).Decode(&user); err != nil {
+			tracer.Errorf("fail to decode req body, %s", err.Error())
+			_, _ = context.Writer.Write([]byte(err.Error()))
+			context.Writer.WriteHeader(http.StatusInternalServerError)
+		}
+		if err := ums.CreateNewUser(context.Request.Context(), user); err != nil {
+			tracer.Errorf("fail to create new user, %s", err.Error())
+			_, _ = context.Writer.Write([]byte(err.Error()))
+			context.Writer.WriteHeader(http.StatusInternalServerError)
+		}
+
+		tracer.Infof("new user created, id=%s, name=%d", user.WechatId, user.Username)
+		context.Writer.WriteHeader(http.StatusOK)
+	})
 }

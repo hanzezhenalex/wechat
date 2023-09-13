@@ -42,6 +42,9 @@ if [ -z "${USE_DOCKER_COMPOSE}" ]; then
     --network "${DOCKER_NETWORK}" \
     mysql/mysql-server:latest
 
+
+  sleep 5 # waiting for mysql
+  
   source ./deploy/db.sh
 
   make docker_wechat_server
