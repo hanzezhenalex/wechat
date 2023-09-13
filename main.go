@@ -71,6 +71,10 @@ func startGin(cfg src.Config, c *wechat.Coordinator) error {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
 
+	logrus.SetFormatter(&logrus.TextFormatter{
+		TimestampFormat: "2006-01-02 15:04:05",
+	})
+
 	registerRoutes(eng, c, cfg)
 
 	return eng.Run(":8096")
