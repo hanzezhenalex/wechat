@@ -26,8 +26,7 @@ var traceLevel = []logrus.Level{
 }
 
 func init() {
-	hooker := TraceHooker{}
-	logrus.AddHook(hooker)
+	logrus.AddHook(TraceHooker{})
 }
 
 type TraceHooker struct{}
@@ -38,9 +37,11 @@ func (hook TraceHooker) Levels() []logrus.Level {
 func (hook TraceHooker) Fire(entry *logrus.Entry) error {
 	ctx := entry.Context
 
-	traceId := ctx.Value(traceIdKey{})
-	if traceId != nil {
-		entry.Data["trace_id"] = traceId
+	if ctx != nil {
+		traceId := ctx.Value(traceIdKey{})
+		if traceId != nil {
+			entry.Data["trace_id"] = traceId
+		}
 	}
 	return nil
 }
