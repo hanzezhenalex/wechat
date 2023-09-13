@@ -57,8 +57,10 @@ func (dd *Deduplication) Handle(ctx context.Context, message Message) (ret strin
 		case err != nil:
 			return serverInternalError, fmt.Errorf("fail to check record, %w", err)
 		case !existed:
+			tracer.Info("duplicated pic")
 			return duplicated, nil
 		default:
+			tracer.Info("inserted successfully")
 			return deduplicated, nil
 		}
 	default:

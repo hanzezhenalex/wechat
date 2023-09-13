@@ -49,7 +49,7 @@ func (hook TraceHooker) Fire(entry *logrus.Entry) error {
 func TracerMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := context.WithValue(c.Request.Context(), traceIdKey{}, uuid.NewV4())
-		c.Request.WithContext(ctx)
+		c.Request = c.Request.WithContext(ctx)
 
 		startTime := time.Now()
 		reqMethod := c.Request.Method
@@ -73,5 +73,5 @@ func GetTraceId(ctx context.Context) string {
 	if traceId != nil {
 		return traceId.(string)
 	}
-	return ""
+	return "unknown"
 }
