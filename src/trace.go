@@ -26,7 +26,8 @@ var traceLevel = []logrus.Level{
 }
 
 func init() {
-	logrus.AddHook(TraceHooker{})
+	hooker := TraceHooker{}
+	logrus.AddHook(hooker)
 }
 
 type TraceHooker struct{}
