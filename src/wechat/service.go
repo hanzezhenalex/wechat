@@ -5,8 +5,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/hanzezhenalex/wechat/src/datastore"
 )
+
+var deduplicationTracer = func(ctx context.Context) *logrus.Entry {
+	return logrus.WithField("comp", "deduplication").WithContext(ctx)
+}
 
 type Service interface {
 	Handle(ctx context.Context, message Message) (string, error)
@@ -27,18 +33,23 @@ func (dd *Deduplication) Handle(ctx context.Context, message Message) (ret strin
 		ret = message.TextResponse(ret)
 	}()
 
+	tracer := deduplicationTracer(ctx)
+	tracer.Info("message processed by deduplication service")
+
 	switch message.MsgType {
 	case msgImage:
 		url, err := message.GetPicUrl()
 		if err != nil {
 			return serverInternalError, fmt.Errorf("fail to get PicUrl, %w", err)
 		}
+		tracer.Debugf("pic url %s", url)
 
 		md5, err := getMd5FromUrl(url)
 		if err != nil {
 			// TODO: fallback to download pic and cal md5
 			return serverInternalError, fmt.Errorf("fail to get md5, %w", err)
 		}
+		tracer.Debugf("md5 %s", md5)
 
 		existed, err := dd.store.CreateRecordAndCheckIfHashExist(ctx, datastore.NewRecord(md5, message.FromUserName, url))
 
