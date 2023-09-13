@@ -389,5 +389,30 @@ func (store *MysqlDatastore) GetUserByWechatId(ctx context.Context, id string) (
 }
 
 func (store *MysqlDatastore) GetAllUsers(ctx context.Context) ([]User, error) {
-	return []User{}, nil
+	const query = `
+		SELECT 
+			username, leader_wechat_id, wechat_id
+		FROM
+			users
+		WHERE
+			active = true
+	`
+	rows, err := store.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("fail to query all user, %w", err)
+	}
+
+	var users []User
+	var username, leaderWechatId, wechatId string
+	for rows.Next() {
+		if err := rows.Scan(&username, &leaderWechatId, &wechatId); err != nil {
+			return nil, fmt.Errorf("fail scan users from rows, %w", err)
+		}
+		users = append(users, User{
+			Username: username,
+			WechatId: wechatId,
+			LeaderId: leaderWechatId,
+		})
+	}
+	return users, nil
 }
