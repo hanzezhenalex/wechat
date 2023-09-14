@@ -4,10 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/hanzezhenalex/wechat/src"
 	"net/http"
 	"sync"
-
-	"github.com/hanzezhenalex/wechat/src"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hanzezhenalex/wechat/src/datastore"
@@ -44,13 +43,13 @@ func NewUMS(store datastore.DataStore) (*UserMngr, error) {
 
 	// cache all users
 	for _, user := range users {
-		usm.cache.Store(user.WechatId, user)
+		usm.cache.Store(user.WechatID, user)
 	}
 	return usm, nil
 }
 
-func (ums *UserMngr) CreateNewUser(ctx context.Context, user datastore.User) error {
-	key := user.WechatId
+func (ums *UserMngr) CreateNewUser(ctx context.Context, user datastore.UserInfo) error {
+	key := user.WechatID
 
 	_, loaded := ums.cache.Load(key)
 	if loaded {
@@ -75,7 +74,7 @@ func (ums *UserMngr) CreateNewUser(ctx context.Context, user datastore.User) err
 		wg.Done()
 	}()
 
-	if err := ums.store.CreateUser(ctx, user); err != nil {
+	if err := ums.store.CreateNewUser(ctx, user); err != nil {
 		return fmt.Errorf("fail to create user %s in datastore, %w", key, err)
 	}
 
@@ -84,17 +83,18 @@ func (ums *UserMngr) CreateNewUser(ctx context.Context, user datastore.User) err
 	return nil
 }
 
-func (ums *UserMngr) GetUserById(_ context.Context, id string) (datastore.User, bool) {
+func (ums *UserMngr) GetUserById(_ context.Context, id string) (datastore.UserInfo, bool) {
 	val, loaded := ums.cache.Load(id)
 	if !loaded {
-		return datastore.User{}, false
+		return datastore.UserInfo{}, false
 	}
-	return val.(datastore.User), true
+	return val.(datastore.UserInfo), true
 }
 
 func (ums *UserMngr) RegisterEndpoints(group *gin.RouterGroup) {
 	group.POST("/create", func(context *gin.Context) {
-		tracer := umsTracer(context.Request.Context())
+		ctx := context.Request.Context()
+		tracer := umsTracer(ctx)
 
 		auth := context.Request.Header.Get("x-alex-auth")
 		if auth != src.DefaultApiToken {
@@ -103,19 +103,20 @@ func (ums *UserMngr) RegisterEndpoints(group *gin.RouterGroup) {
 			return
 		}
 
-		var user datastore.User
+		var user datastore.UserInfo
 		if err := json.NewDecoder(context.Request.Body).Decode(&user); err != nil {
 			tracer.Errorf("fail to decode req body, %s", err.Error())
 			_, _ = context.Writer.Write([]byte(err.Error()))
 			context.Writer.WriteHeader(http.StatusInternalServerError)
 		}
-		if err := ums.CreateNewUser(context.Request.Context(), user); err != nil {
+
+		if err := ums.CreateNewUser(ctx, user); err != nil {
 			tracer.Errorf("fail to create new user, %s", err.Error())
 			_, _ = context.Writer.Write([]byte(err.Error()))
 			context.Writer.WriteHeader(http.StatusInternalServerError)
 		}
 
-		tracer.Infof("new user created, id=%s, name=%d", user.WechatId, user.Username)
+		tracer.Infof("new user created, id=%s, name=%s", user.WechatID, user.Name)
 		context.Writer.WriteHeader(http.StatusOK)
 	})
 }

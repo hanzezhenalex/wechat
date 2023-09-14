@@ -12,7 +12,7 @@ services:
       - /home/mysql/data:/var/lib/mysql
     container_name:
       mysql
-  wechat:
+  wechat-server:
     build: .
     restart: always
     container_name: wechat_server

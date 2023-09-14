@@ -24,15 +24,19 @@ type Coordinator struct {
 }
 
 func NewCoordinator(cfg src.Config, store datastore.DataStore) (*Coordinator, error) {
-	c := &Coordinator{
-		tm:  NewTokenManager(cfg),
-		svc: NewDeduplication(store),
+	svc, err := NewDeduplication(store)
+	if err != nil {
+		return nil, fmt.Errorf("fail to create deduplication service, %w", err)
 	}
 	ums, err := NewUMS(store)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create ums, %w", err)
 	}
-	c.ums = ums
+	c := &Coordinator{
+		tm:  NewTokenManager(cfg),
+		svc: svc,
+		ums: ums,
+	}
 	return c, nil
 }
 
@@ -50,6 +54,7 @@ func (c *Coordinator) Handler() gin.HandlerFunc {
 		_ = context.Request.Body.Close()
 		tracer.Infof("new message from %s", msg.FromUserName)
 
+		tracer.Info("checking the existence of user")
 		if _, ok := c.ums.GetUserById(ctx, msg.FromUserName); !ok {
 			tracer.Warningf("message rejected, user %s not register", msg.FromUserName)
 			_, _ = context.Writer.WriteString(msg.TextResponse(userNotRegistered))

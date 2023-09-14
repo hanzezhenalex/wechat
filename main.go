@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"os"
 
@@ -40,7 +39,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	store, err := datastore.NewMysqlDatastore(context.Background(), cfg, false)
+	store, err := datastore.NewMysqlDataStore(cfg, false)
 	if err != nil {
 		logrus.Errorf("fail to create mysql datastore, err=%s", err.Error())
 		os.Exit(1)
@@ -51,7 +50,6 @@ func main() {
 		logrus.Errorf("fail to create coordinator, err=%s", err.Error())
 		os.Exit(1)
 	}
-
 
 	if err := startGin(cfg, c); err != nil {
 		logrus.Errorf("fail to run gin server, err=%s", err.Error())

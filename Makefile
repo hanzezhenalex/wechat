@@ -11,3 +11,4 @@ docker_wechat_server:
 	docker build -f ./Dockerfile --target wechat_server -t alex/wechat_server .
 
 docker_compose:
+	docker-compose up .

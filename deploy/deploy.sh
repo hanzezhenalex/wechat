@@ -3,19 +3,14 @@
 set -exo pipefail
 
 export DOCKER_MYSQL_NAME="mysql-for-wechat"
-WECHAT_SERVER_NAME="wechat"
-DOCKER_NETWORK="wechatService"
+export DOCKER_WECHAT_SERVER="wechat"
+export DOCKER_NETWORK="wechatService"
 
-CONFIG_FILE_FOLDER="/home/ccloud/wechat"
-CONFIG_FILE_NAME="config_wechat.json"
-CONFIG_FILE_PATH="${CONFIG_FILE_FOLDER}/${CONFIG_FILE_NAME}"
+export CONFIG_FILE_FOLDER="/home/ccloud/wechat"
+export CONFIG_FILE_NAME="config_wechat.json"
+export CONFIG_FILE_PATH="${CONFIG_FILE_FOLDER}/${CONFIG_FILE_NAME}"
+
 mkdir -p "${CONFIG_FILE_FOLDER}"
-
-# echo "clean up"
-# docker container stop $(docker ps | grep "${DOCKER_MYSQL_NAME}" | awk '{print $1}')
-# docker container stop $(docker ps | grep "${WECHAT_SERVER_NAME}" | awk '{print $1}')
-# docker container rm $(docker ps -a | grep "${WECHAT_SERVER_NAME}" | awk '{print $1}')
-# docker network rm $(docker network ls | grep "${DOCKER_NETWORK}" | awk '{print $1}')
 
   echo "
 {
@@ -33,31 +28,9 @@ if [ -z "${USE_DOCKER_COMPOSE}" ]; then
 
   docker network create "${DOCKER_NETWORK}"
 
-  docker run -d --rm --name "${DOCKER_MYSQL_NAME}" \
-    -e MYSQL_ROOT_PASSWORD=sergey \
-    -e MYSQL_DATABASE=wechat \
-    -e MYSQL_USER=sergey \
-    -e MYSQL_PASSWORD=sergey \
-    -v /home/mysql/data:/var/lib/mysql \
-    --network "${DOCKER_NETWORK}" \
-    mysql/mysql-server:latest
-
-
-  sleep 5 # waiting for mysql
-  
-  source ./deploy/db.sh
-
-  make docker_wechat_server
-
-  docker run -d --name "${WECHAT_SERVER_NAME}" -p 8096:8096 \
-    --network "${DOCKER_NETWORK}" \
-    -v "${CONFIG_FILE_FOLDER}":/usr/app/wechat \
-    alex/wechat_server:latest --config "/usr/app/wechat/${CONFIG_FILE_NAME}"
-
+  source ./deploy/deploy_db.sh true
+  source ./deploy/deploy_wechat_server.sh true
 else
   echo "use docker_compose"
   make docker_compose
 fi
-
-
-

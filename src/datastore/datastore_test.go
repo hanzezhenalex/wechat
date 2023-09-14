@@ -9,6 +9,7 @@ import (
 
 	"github.com/hanzezhenalex/wechat/src"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,9 +17,8 @@ func Zero(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 }
 
-func TestMysqlDatastore(t *testing.T) {
+func TestDataStore(t *testing.T) {
 	rq := require.New(t)
-	ctx := context.Background()
 
 	// TODO: read if from config?
 	cfg := src.Config{
@@ -30,72 +30,60 @@ func TestMysqlDatastore(t *testing.T) {
 		},
 	}
 
-	// TODO: make it a global one
-	mysql, err := NewMysqlDatastore(ctx, cfg, true)
+	logrus.SetLevel(logrus.DebugLevel)
+
+	store, err := NewMysqlDataStore(cfg, true)
 	rq.NoError(err)
 
-	rq.NoError(mysql.CreateUser(ctx, User{
-		WechatId: "leader_1",
-	}))
-	rq.NoError(mysql.CreateUser(ctx, User{
-		WechatId: "user_1",
-		LeaderId: "leader_1",
-	}))
-	rq.NoError(mysql.CreateUser(ctx, User{
-		WechatId: "user_2",
-		LeaderId: "leader_1",
-	}))
+	ctx := context.Background()
 
-	var records = []Record{
-		{
-			UserWechatId: "leader_1",
-			Hash:         "hash0",
-			GraphUrl:     "http://www.baidu.com",
-			Status:       confirmedStr,
-		},
-		{
-			UserWechatId: "user_1",
-			Hash:         "hash1",
-			GraphUrl:     "http://www.baidu.com",
-		},
-		{
-			UserWechatId: "user_1",
-			Hash:         "hash2",
-			GraphUrl:     "http://www.baidu.com",
-		},
-		{
-			UserWechatId: "user_2",
-			Hash:         "hash3",
-			GraphUrl:     "http://www.baidu.com",
-		},
-		{
-			UserWechatId: "user_2",
-			Hash:         "hash4",
-			GraphUrl:     "http://www.baidu.com",
-		},
-	}
+	t.Run("users", func(t *testing.T) {
+		rq.NoError(store.CreateNewUser(ctx, UserInfo{
+			WechatID: "id_1",
+			Name:     "user_1",
+		}))
+		rq.NoError(store.CreateNewUser(ctx, UserInfo{
+			WechatID: "id_2",
+			Name:     "user_2",
+		}))
 
-	for _, record := range records {
-		ok, err := mysql.CreateRecordAndCheckIfHashExist(ctx, record)
+		users, err := store.GetAllUsers(ctx)
 		rq.NoError(err)
-		rq.True(ok)
-	}
+		rq.Equal(2, len(users))
 
-	t.Run("get record by leader", func(t *testing.T) {
-		now := time.Now()
-		records, err := mysql.GetRecordsByLeader(ctx, "leader_1", RecordQueryOption{
-			minStatus: unknownStr,
-			maxStatus: confirmedStr,
-			from:      Zero(now),
-			to:        now,
-		})
+		_, exist, err := store.GetUserById(ctx, "id_2")
 		rq.NoError(err)
-		rq.Len(records, 4)
+		rq.True(exist)
+
+		_, exist, err = store.GetUserById(ctx, "id_3")
+		rq.NoError(err)
+		rq.False(exist)
 	})
 
-	t.Run("duplicate hash", func(t *testing.T) {
-		ok, err := mysql.CreateRecordAndCheckIfHashExist(ctx, NewRecord("hash4", "user_1", "http://www.baidu.com"))
+	t.Run("record", func(t *testing.T) {
+		r1 := RecordInfo{
+			OwnerID:  "id_1",
+			Status:   waitingForConfirm,
+			GraphUrl: "http://www.baidu.com",
+		}
+
+		// create record, success
+		exist, err := store.CreateRecord(ctx, r1, "123", true)
+		rq.False(exist)
 		rq.NoError(err)
-		rq.False(ok)
+
+		// create record with duplicated md5,
+		// record -> success
+		// duplicated md5 -> exist = true
+		exist, err = store.CreateRecord(ctx, r1, "123", true)
+		rq.True(exist)
+		rq.NoError(err)
+
+		hashes, err := store.GetAllHashes(ctx, HashQueryOption{
+			from: Zero(time.Now()),
+			to:   time.Now(),
+		})
+		rq.NoError(err)
+		rq.Equal(1, len(hashes))
 	})
 }

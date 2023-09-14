@@ -22,10 +22,11 @@ type Deduplication struct {
 	store datastore.DataStore
 }
 
-func NewDeduplication(store datastore.DataStore) *Deduplication {
-	return &Deduplication{
+func NewDeduplication(store datastore.DataStore) (*Deduplication, error) {
+	dd := &Deduplication{
 		store: store,
 	}
+	return dd, nil
 }
 
 func (dd *Deduplication) Handle(ctx context.Context, message Message) (ret string, err error) {
@@ -51,12 +52,12 @@ func (dd *Deduplication) Handle(ctx context.Context, message Message) (ret strin
 		}
 		tracer.Debugf("md5 %s", md5)
 
-		existed, err := dd.store.CreateRecordAndCheckIfHashExist(ctx, datastore.NewRecord(md5, message.FromUserName, url))
+		existed, err := dd.exist(ctx, md5, url, message.FromUserName)
 
 		switch {
 		case err != nil:
 			return serverInternalError, fmt.Errorf("fail to check record, %w", err)
-		case !existed:
+		case existed:
 			tracer.Info("duplicated pic")
 			return duplicated, nil
 		default:
@@ -66,6 +67,23 @@ func (dd *Deduplication) Handle(ctx context.Context, message Message) (ret strin
 	default:
 		return notSupportYet, nil
 	}
+}
+
+func (dd *Deduplication) exist(ctx context.Context, md5 string, url string, username string) (bool, error) {
+	tracer := deduplicationTracer(ctx)
+
+	record, err := datastore.NewRecordInfo(username, datastore.WaitingForConfirm, url)
+	if err != nil {
+		return false, fmt.Errorf("fail to create reocrd info, %w", err)
+	}
+
+	exist, err := dd.store.CreateRecord(ctx, record, md5, true)
+	if err != nil {
+		return false, fmt.Errorf("fail to create reocrd, %w", err)
+	}
+	tracer.Debugf("exsitence in store: %t", exist)
+
+	return exist, nil
 }
 
 // https://mmbiz.qpic.cn/sz_mmbiz_jpg/JV8VqJ5QWKnUHHlLxTT4R0IhH3GpDfTFO7ePlHibCPDCxTwtCiamKW2ibdxPmNhFUKpDVtApTUSPdwTYo0Cwb02xw/0

@@ -2,10 +2,30 @@
 
 set -exo pipefail
 
-# find mysql container
-if [ -z "${DOCKER_MYSQL_NAME}" ]; then
-  DOCKER_MYSQL_NAME="mysql-for-wechat"
+PRODUCTION_MODE=$1
+DOCKER_MYSQL_NAME='mysql-for-wechat'
+
+if [ -z "${PRODUCTION_MODE}" ]; then
+  docker run -d -p 3306:3306 --name "${DOCKER_MYSQL_NAME}" \
+    -e MYSQL_ROOT_PASSWORD=sergey \
+    -e MYSQL_DATABASE=wechat \
+    -e MYSQL_USER=sergey \
+    -e MYSQL_PASSWORD=sergey \
+    mysql/mysql-server:latest
+else
+  echo "production mode"
+  docker run -d --rm --name "${DOCKER_MYSQL_NAME}" \
+    -e MYSQL_ROOT_PASSWORD=sergey \
+    -e MYSQL_DATABASE=wechat \
+    -e MYSQL_USER=sergey \
+    -e MYSQL_PASSWORD=sergey \
+    -v /home/mysql/data:/var/lib/mysql \
+    --network "${DOCKER_NETWORK}" \
+    mysql/mysql-server:latest
 fi
+
+sleep 5 # waiting for mysql
+
 docker_mysql_id=$(docker ps | grep "${DOCKER_MYSQL_NAME}" | awk '{print $1}')
 if [ -z "${docker_mysql_id}" ]; then
   echo "mysql is not working"
@@ -25,6 +45,7 @@ if [ -z "${MYSQL_USER}" ]; then
 fi
 
 docker_mysql_db="wechat"
+
 # prepare db
 echo "create database ${docker_mysql_db}"
 docker exec "${docker_mysql_id}" mysql -u"${MYSQL_ROOT_USER}" -p"${MYSQL_ROOT_PASSWORD}" \

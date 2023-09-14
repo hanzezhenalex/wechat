@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"net/http"
 	"sync/atomic"
 	"time"
@@ -39,18 +40,24 @@ func NewTokenManager(cfg src.Config) *tokenManager {
 func (tm *tokenManager) daemon() {
 	var interval time.Duration
 
-	ticker := time.NewTimer(time.Millisecond)
+	ticker := time.NewTimer(time.Hour)
 	hasFailed := 0
+	tracer := logrus.WithField("comp", "token_mngr")
 
 	for {
 		<-ticker.C
+		// TODO: store it in a file, and read from file first?
+		tracer.Info("start to fetch token")
 		t, err := tm.fetch()
 		if err != nil {
 			hasFailed++
 			interval = time.Duration(hasFailed*hasFailed) * time.Second
+			tracer.Errorf("fail to fetch token, fail cnt=%d err=%s, waiting interval=%s",
+				hasFailed, err.Error(), interval.String())
 		} else {
 			tm.token.Store(t.AccessToken)
 			interval = time.Duration(t.Expires) * time.Second
+			tracer.Infof("fetch token successfully, next interval=%s", interval.String())
 		}
 		ticker.Reset(interval)
 	}
