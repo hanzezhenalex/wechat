@@ -63,7 +63,7 @@ func (dd *Deduplication) Handle(ctx context.Context, message Message) (ret strin
 		switch {
 		case err != nil:
 			return serverInternalError, fmt.Errorf("fail to check record, %w", err)
-		case !existed:
+		case existed:
 			tracer.Info("duplicated pic")
 			return duplicated, nil
 		default:
@@ -76,7 +76,10 @@ func (dd *Deduplication) Handle(ctx context.Context, message Message) (ret strin
 }
 
 func (dd *Deduplication) exist(ctx context.Context, md5 string, url string, username string) (bool, error) {
+	tracer := deduplicationTracer(ctx)
+
 	existInFilter := dd.filter.TestAndAdd(md5)
+	tracer.Infof("exsitence in filter: %t", existInFilter)
 
 	record, err := datastore.NewRecordInfo(username, datastore.WaitingForConfirm, url)
 	if err != nil {
@@ -87,6 +90,7 @@ func (dd *Deduplication) exist(ctx context.Context, md5 string, url string, user
 	if err != nil {
 		return false, fmt.Errorf("fail to create reocrd, %w", err)
 	}
+	tracer.Infof("exsitence in store: %t", existInStore)
 
 	// not exist in filter MEANS not exist,
 	// exist in filter MEANS may exist, need check by datastore
