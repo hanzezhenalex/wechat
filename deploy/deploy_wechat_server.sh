@@ -1,6 +1,6 @@
 set -exo pipefail
 
-DOCKER_WECHAT_SERVER="wechat"
+DOCKER_WECHAT_SERVER="wechat-server"
 PRODUCTION_MODE=$1
 
 echo "clean up wechat_server"
