@@ -54,6 +54,7 @@ func (c *Coordinator) Handler() gin.HandlerFunc {
 		_ = context.Request.Body.Close()
 		tracer.Infof("new message from %s", msg.FromUserName)
 
+		tracer.Info("checking the existence of user")
 		if _, ok := c.ums.GetUserById(ctx, msg.FromUserName); !ok {
 			tracer.Warningf("message rejected, user %s not register", msg.FromUserName)
 			_, _ = context.Writer.WriteString(msg.TextResponse(userNotRegistered))
