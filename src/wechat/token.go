@@ -40,7 +40,7 @@ func NewTokenManager(cfg src.Config) *tokenManager {
 func (tm *tokenManager) daemon() {
 	var interval time.Duration
 
-	ticker := time.NewTimer(time.Millisecond)
+	ticker := time.NewTimer(time.Hour)
 	hasFailed := 0
 	tracer := logrus.WithField("comp", "token_mngr")
 
