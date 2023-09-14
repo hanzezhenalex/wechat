@@ -3,22 +3,14 @@ set -exo pipefail
 DOCKER_WECHAT_SERVER="wechat-server"
 PRODUCTION_MODE=$1
 
-echo "clean up wechat_server"
-
-containers=$(docker ps | grep "${DOCKER_WECHAT_SERVER}" | awk '{print $1}')
-
-if [ -z "${containers}" ]; then
-  echo "no running containers "
-else
-  docker container stop $(docker ps | grep "${DOCKER_WECHAT_SERVER}" | awk '{print $1}')
+if [ -z "${CONFIG_FILE_FOLDER}" ]; then
+  CONFIG_FILE_FOLDER="/home/ccloud/wechat"
 fi
-
-containers=$(docker ps -a | grep "${DOCKER_WECHAT_SERVER}" | awk '{print $1}')
-
-if [ -z "${containers}" ]; then
-  echo "no stopped containers"
-else
-  docker container rm $(docker ps -a | grep "${DOCKER_WECHAT_SERVER}" | awk '{print $1}')
+if [ -z "${CONFIG_FILE_NAME}" ]; then
+  CONFIG_FILE_NAME="config_wechat.json"
+fi
+if [ -z "${DOCKER_NETWORK}" ]; then
+  DOCKER_NETWORK="wechatService"
 fi
 
 make docker_wechat_server

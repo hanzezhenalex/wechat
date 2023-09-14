@@ -34,6 +34,3 @@ else
   echo "use docker_compose"
   make docker_compose
 fi
-
-
-
