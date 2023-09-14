@@ -5,20 +5,20 @@ PRODUCTION_MODE=$1
 
 echo "clean up wechat_server"
 
-containers=$(docker ps | grep "${DOCKER_WECHAT_SERVER}" | awk '{print 1}')
+containers=$(docker ps | grep "${DOCKER_WECHAT_SERVER}" | awk '{print $1}')
 
 if [ -z "${containers}" ]; then
   echo "no running containers "
 else
-  docker container stop "${containers}"
+  docker container stop $(docker ps | grep "${DOCKER_WECHAT_SERVER}" | awk '{print $1}')
 fi
 
-containers=$(docker ps -a | grep "${DOCKER_WECHAT_SERVER}" | awk '{print 1}')
+containers=$(docker ps -a | grep "${DOCKER_WECHAT_SERVER}" | awk '{print $1}')
 
 if [ -z "${containers}" ]; then
   echo "no stopped containers"
 else
-  docker container stop "${containers}"
+  docker container stop $(docker ps -a | grep "${DOCKER_WECHAT_SERVER}" | awk '{print $1}')
 fi
 
 make docker_wechat_server

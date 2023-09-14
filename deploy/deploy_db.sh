@@ -26,8 +26,6 @@ fi
 
 sleep 5 # waiting for mysql
 
-source ./deploy/db.sh
-
 docker_mysql_id=$(docker ps | grep "${DOCKER_MYSQL_NAME}" | awk '{print $1}')
 if [ -z "${docker_mysql_id}" ]; then
   echo "mysql is not working"
