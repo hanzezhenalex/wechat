@@ -18,7 +18,7 @@ containers=$(docker ps -a | grep "${DOCKER_WECHAT_SERVER}" | awk '{print $1}')
 if [ -z "${containers}" ]; then
   echo "no stopped containers"
 else
-  docker container stop $(docker ps -a | grep "${DOCKER_WECHAT_SERVER}" | awk '{print $1}')
+  docker container rm $(docker ps -a | grep "${DOCKER_WECHAT_SERVER}" | awk '{print $1}')
 fi
 
 make docker_wechat_server
