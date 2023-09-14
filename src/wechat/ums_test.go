@@ -24,7 +24,7 @@ func TestUMS(t *testing.T) {
 	rq.NoError(err)
 
 	t.Run("create new user", func(t *testing.T) {
-		store.EXPECT().CreateUser(gomock.Any(), gomock.Any()).Return(nil)
+		store.EXPECT().CreateNewUser(gomock.Any(), gomock.Any()).Return(nil)
 
 		rq.NoError(ums.CreateNewUser(context.Background(), datastore.UserInfo{
 			WechatID: "id1",
@@ -35,7 +35,7 @@ func TestUMS(t *testing.T) {
 	})
 
 	t.Run("duplicated creation", func(t *testing.T) {
-		store.EXPECT().CreateUser(gomock.Any(), gomock.Any()).Times(1).DoAndReturn(func(ctx context.Context, new datastore.UserInfo) error {
+		store.EXPECT().CreateNewUser(gomock.Any(), gomock.Any()).Times(1).DoAndReturn(func(ctx context.Context, new datastore.UserInfo) error {
 			rq.Equal("id2", new.WechatID)
 			return nil
 		})
@@ -51,7 +51,7 @@ func TestUMS(t *testing.T) {
 	})
 
 	t.Run("read write", func(t *testing.T) {
-		store.EXPECT().CreateUser(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(func(_ context.Context, _ datastore.UserInfo) error {
+		store.EXPECT().CreateNewUser(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(func(_ context.Context, _ datastore.UserInfo) error {
 			time.Sleep(time.Second)
 			return nil
 		})

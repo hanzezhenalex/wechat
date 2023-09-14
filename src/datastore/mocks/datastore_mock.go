@@ -35,54 +35,55 @@ func (m *MockDataStore) EXPECT() *MockDataStoreMockRecorder {
 	return m.recorder
 }
 
-// Close mocks base method.
-func (m *MockDataStore) Close() error {
+// CreateNewUser mocks base method.
+func (m *MockDataStore) CreateNewUser(ctx context.Context, user datastore.UserInfo) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Close")
+	ret := m.ctrl.Call(m, "CreateNewUser", ctx, user)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Close indicates an expected call of Close.
-func (mr *MockDataStoreMockRecorder) Close() *gomock.Call {
+// CreateNewUser indicates an expected call of CreateNewUser.
+func (mr *MockDataStoreMockRecorder) CreateNewUser(ctx, user interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDataStore)(nil).Close))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateNewUser", reflect.TypeOf((*MockDataStore)(nil).CreateNewUser), ctx, user)
 }
 
-// CreateRecordAndCheckHash mocks base method.
-func (m *MockDataStore) CreateRecordAndCheckIfHashExist(ctx context.Context, record datastore.Record) (bool, error) {
+// CreateRecord mocks base method.
+func (m *MockDataStore) CreateRecord(ctx context.Context, record datastore.RecordInfo, md5 string, checkExist bool) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateRecordAndCheckIfHashExist", ctx, record)
+	ret := m.ctrl.Call(m, "CreateRecord", ctx, record, md5, checkExist)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// CreateRecordAndCheckHash indicates an expected call of CreateRecordAndCheckHash.
-func (mr *MockDataStoreMockRecorder) CreateRecordAndCheckHash(ctx, record interface{}) *gomock.Call {
+// CreateRecord indicates an expected call of CreateRecord.
+func (mr *MockDataStoreMockRecorder) CreateRecord(ctx, record, md5, checkExist interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateRecordAndCheckIfHashExist", reflect.TypeOf((*MockDataStore)(nil).CreateRecordAndCheckIfHashExist), ctx, record)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateRecord", reflect.TypeOf((*MockDataStore)(nil).CreateRecord), ctx, record, md5, checkExist)
 }
 
-// CreateUser mocks base method.
-func (m *MockDataStore) CreateUser(ctx context.Context, new datastore.User) error {
+// GetAllHashes mocks base method.
+func (m *MockDataStore) GetAllHashes(ctx context.Context, option datastore.HashQueryOption) ([]datastore.Hash, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateUser", ctx, new)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret := m.ctrl.Call(m, "GetAllHashes", ctx, option)
+	ret0, _ := ret[0].([]datastore.Hash)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-// CreateUser indicates an expected call of CreateUser.
-func (mr *MockDataStoreMockRecorder) CreateUser(ctx, new interface{}) *gomock.Call {
+// GetAllHashes indicates an expected call of GetAllHashes.
+func (mr *MockDataStoreMockRecorder) GetAllHashes(ctx, option interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateUser", reflect.TypeOf((*MockDataStore)(nil).CreateUser), ctx, new)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllHashes", reflect.TypeOf((*MockDataStore)(nil).GetAllHashes), ctx, option)
 }
 
 // GetAllUsers mocks base method.
-func (m *MockDataStore) GetAllUsers(ctx context.Context) ([]datastore.User, error) {
+func (m *MockDataStore) GetAllUsers(ctx context.Context) ([]datastore.UserInfo, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAllUsers", ctx)
-	ret0, _ := ret[0].([]datastore.User)
+	ret0, _ := ret[0].([]datastore.UserInfo)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -93,32 +94,18 @@ func (mr *MockDataStoreMockRecorder) GetAllUsers(ctx interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllUsers", reflect.TypeOf((*MockDataStore)(nil).GetAllUsers), ctx)
 }
 
-// GetRecordsByLeader mocks base method.
-func (m *MockDataStore) GetRecordsByLeader(ctx context.Context, id string, option datastore.RecordQueryOption) ([]datastore.Record, error) {
+// GetUserById mocks base method.
+func (m *MockDataStore) GetUserById(ctx context.Context, id string) (datastore.UserInfo, bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRecordsByLeader", ctx, id, option)
-	ret0, _ := ret[0].([]datastore.Record)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret := m.ctrl.Call(m, "GetUserById", ctx, id)
+	ret0, _ := ret[0].(datastore.UserInfo)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
-// GetRecordsByLeader indicates an expected call of GetRecordsByLeader.
-func (mr *MockDataStoreMockRecorder) GetRecordsByLeader(ctx, id, option interface{}) *gomock.Call {
+// GetUserById indicates an expected call of GetUserById.
+func (mr *MockDataStoreMockRecorder) GetUserById(ctx, id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRecordsByLeader", reflect.TypeOf((*MockDataStore)(nil).GetRecordsByLeader), ctx, id, option)
-}
-
-// GetRecordsByUser mocks base method.
-func (m *MockDataStore) GetRecordsByUser(ctx context.Context, id string, option datastore.RecordQueryOption) ([]datastore.Record, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRecordsByUser", ctx, id, option)
-	ret0, _ := ret[0].([]datastore.Record)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetRecordsByUser indicates an expected call of GetRecordsByUser.
-func (mr *MockDataStoreMockRecorder) GetRecordsByUser(ctx, id, option interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRecordsByUser", reflect.TypeOf((*MockDataStore)(nil).GetRecordsByUser), ctx, id, option)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserById", reflect.TypeOf((*MockDataStore)(nil).GetUserById), ctx, id)
 }
