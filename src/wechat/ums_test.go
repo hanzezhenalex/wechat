@@ -18,7 +18,7 @@ func TestUMS(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	store := mock.NewMockDataStore(ctrl)
-	store.EXPECT().GetAllUsers(gomock.Any()).Return([]datastore.User{}, nil)
+	store.EXPECT().GetAllUsers(gomock.Any()).Return([]datastore.UserInfo{}, nil)
 
 	ums, err := NewUMS(store)
 	rq.NoError(err)
@@ -26,8 +26,8 @@ func TestUMS(t *testing.T) {
 	t.Run("create new user", func(t *testing.T) {
 		store.EXPECT().CreateUser(gomock.Any(), gomock.Any()).Return(nil)
 
-		rq.NoError(ums.CreateNewUser(context.Background(), datastore.User{
-			WechatId: "id1",
+		rq.NoError(ums.CreateNewUser(context.Background(), datastore.UserInfo{
+			WechatID: "id1",
 		}))
 
 		_, ok := ums.GetUserById(context.Background(), "id1")
@@ -35,23 +35,23 @@ func TestUMS(t *testing.T) {
 	})
 
 	t.Run("duplicated creation", func(t *testing.T) {
-		store.EXPECT().CreateUser(gomock.Any(), gomock.Any()).Times(1).DoAndReturn(func(ctx context.Context, new datastore.User) error {
-			rq.Equal("id2", new.WechatId)
+		store.EXPECT().CreateUser(gomock.Any(), gomock.Any()).Times(1).DoAndReturn(func(ctx context.Context, new datastore.UserInfo) error {
+			rq.Equal("id2", new.WechatID)
 			return nil
 		})
 		// first one, success
-		rq.NoError(ums.CreateNewUser(context.Background(), datastore.User{
-			WechatId: "id2",
+		rq.NoError(ums.CreateNewUser(context.Background(), datastore.UserInfo{
+			WechatID: "id2",
 		}))
 		// second one, fail
-		rq.Error(ums.CreateNewUser(context.Background(), datastore.User{
-			WechatId: "id2",
+		rq.Error(ums.CreateNewUser(context.Background(), datastore.UserInfo{
+			WechatID: "id2",
 		}))
 		rq.Equal(0, len(ums.updating))
 	})
 
 	t.Run("read write", func(t *testing.T) {
-		store.EXPECT().CreateUser(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(func(_ context.Context, _ datastore.User) error {
+		store.EXPECT().CreateUser(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(func(_ context.Context, _ datastore.UserInfo) error {
 			time.Sleep(time.Second)
 			return nil
 		})
@@ -60,8 +60,8 @@ func TestUMS(t *testing.T) {
 		wg.Add(1)
 
 		go func() {
-			rq.NoError(ums.CreateNewUser(context.Background(), datastore.User{
-				WechatId: "id3",
+			rq.NoError(ums.CreateNewUser(context.Background(), datastore.UserInfo{
+				WechatID: "id3",
 			}))
 			wg.Done()
 		}()

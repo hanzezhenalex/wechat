@@ -19,13 +19,20 @@ type Service interface {
 }
 
 type Deduplication struct {
-	store datastore.DataStore
+	store  datastore.DataStore
+	filter *BloomFilter
 }
 
-func NewDeduplication(store datastore.DataStore) *Deduplication {
-	return &Deduplication{
-		store: store,
+func NewDeduplication(store datastore.DataStore) (*Deduplication, error) {
+	filter, err := NewBloomFilter(store)
+	if err != nil {
+		return nil, fmt.Errorf("fail to create BloomFilter, %w", err)
 	}
+	dd := &Deduplication{
+		store:  store,
+		filter: filter,
+	}
+	return dd, nil
 }
 
 func (dd *Deduplication) Handle(ctx context.Context, message Message) (ret string, err error) {
@@ -51,7 +58,7 @@ func (dd *Deduplication) Handle(ctx context.Context, message Message) (ret strin
 		}
 		tracer.Debugf("md5 %s", md5)
 
-		existed, err := dd.store.CreateRecordAndCheckIfHashExist(ctx, datastore.NewRecord(md5, message.FromUserName, url))
+		existed, err := dd.exist(ctx, md5, url, message.FromUserName)
 
 		switch {
 		case err != nil:
@@ -66,6 +73,27 @@ func (dd *Deduplication) Handle(ctx context.Context, message Message) (ret strin
 	default:
 		return notSupportYet, nil
 	}
+}
+
+func (dd *Deduplication) exist(ctx context.Context, md5 string, url string, username string) (bool, error) {
+	existInFilter := dd.filter.TestAndAdd(md5)
+
+	record, err := datastore.NewRecordInfo(username, datastore.WaitingForConfirm, url)
+	if err != nil {
+		return false, fmt.Errorf("fail to create reocrd info, %w", err)
+	}
+
+	existInStore, err := dd.store.CreateRecord(ctx, record, md5, existInFilter)
+	if err != nil {
+		return false, fmt.Errorf("fail to create reocrd, %w", err)
+	}
+
+	// not exist in filter MEANS not exist,
+	// exist in filter MEANS may exist, need check by datastore
+	if !existInFilter {
+		return false, nil
+	}
+	return existInStore, nil
 }
 
 // https://mmbiz.qpic.cn/sz_mmbiz_jpg/JV8VqJ5QWKnUHHlLxTT4R0IhH3GpDfTFO7ePlHibCPDCxTwtCiamKW2ibdxPmNhFUKpDVtApTUSPdwTYo0Cwb02xw/0
