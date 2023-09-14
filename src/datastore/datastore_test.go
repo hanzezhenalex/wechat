@@ -79,11 +79,6 @@ func TestDataStore(t *testing.T) {
 		rq.True(exist)
 		rq.NoError(err)
 
-		// create record with checkExist true
-		exist, err = store.CreateRecord(ctx, r1, "123", false)
-		rq.False(exist)
-		rq.NoError(err)
-
 		hashes, err := store.GetAllHashes(ctx, HashQueryOption{
 			from: Zero(time.Now()),
 			to:   time.Now(),

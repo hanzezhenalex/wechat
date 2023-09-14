@@ -183,16 +183,8 @@ func NewRecordQueryOption(from, to time.Time, minorStatus, maxStatus string) (Re
 }
 
 // CreateRecord WARNING: MUST NOT reply on "existed" when set "checkExist" to false
-func (store *mysqlDataStore) CreateRecord(ctx context.Context, record RecordInfo, md5 string, checkExist bool) (existed bool, err error) {
+func (store *mysqlDataStore) CreateRecord(ctx context.Context, record RecordInfo, md5 string, _ bool) (existed bool, err error) {
 	db := store.db.WithContext(ctx)
-
-	if !checkExist {
-		// do not check existence of md5, insert directly
-		if result := db.Create(&record); result.Error != nil {
-			return true, fmt.Errorf("fail to create record, %w", result.Error)
-		}
-		return false, nil
-	}
 
 	// check md5 and set status accordingly
 	tx := db.Begin()
@@ -204,19 +196,20 @@ func (store *mysqlDataStore) CreateRecord(ctx context.Context, record RecordInfo
 		}
 	}()
 
-	// check if duplicated
 	result := tx.Clauses(clause.Insert{Modifier: "IGNORE"}).Create(&Hash{MD5: md5})
 	if result.Error != nil {
 		return false, fmt.Errorf("fail to insert hash, %w", result.Error)
 	}
 
+	// check if duplicated
 	if result.RowsAffected == 0 {
 		existed = true
 		// set status if duplicated
 		record.Status = autoDenied
 	}
+
 	// insert record
-	if result = tx.Create(&record); result.Error != nil {
+	if result := tx.Create(&record); result.Error != nil {
 		err = fmt.Errorf("fail to insert record, %w", result.Error)
 		return
 	}
