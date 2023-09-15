@@ -14,9 +14,9 @@ mkdir -p "${CONFIG_FILE_FOLDER}"
 
   echo "
 {
-  \"token\": \"sdaregsghsd\",
-  \"app_id\": \"wxa1e850de1191bd56\",
-  \"app_secret\": \"3c87533a8b1902e37d08c5f60106bfe9\",
+  \"token\": \"${TOKEN}\",
+  \"app_id\": \"${APP_ID}\",
+  \"app_secret\": \"${APP_SECRET}\",
   \"host\":     \"${DOCKER_MYSQL_NAME}\",
   \"port\":     3306,
   \"username\": \"sergey\",
