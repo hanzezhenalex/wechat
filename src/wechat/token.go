@@ -48,7 +48,7 @@ func NewTokenManager(cfg src.Config) *tokenManager {
 
 func (tm *tokenManager) startLoop() {
 	interval := time.Millisecond
-	token, err := readTokenFromFile()
+	token, err := readTokenFile()
 
 	if err == nil && token.valid() {
 		interval = token.nextRefreshInterval()
@@ -65,29 +65,34 @@ func (tm *tokenManager) daemon(interval time.Duration) {
 		<-ticker.C
 		tracer.Info("start to fetch token")
 
-		t, err := tm.fetch()
+		resp, err := tm.fetch()
 
 		if err != nil {
 			interval = failInterval
 			tracer.Errorf("fail to fetch token, err=%s, waiting interval=%s",
 				err.Error(), interval.String())
 		} else {
-			tm.token.Store(t.AccessToken)
+			tm.token.Store(resp.AccessToken)
 			go func() {
-				if err := writeTokenFile(t); err != nil {
+				if err := writeTokenFile(resp); err != nil {
 					tracer.Errorf("fail to write token file, %s", err.Error())
 				}
 			}()
 
-			interval = time.Duration(t.Expires) * time.Second / 2
+			interval = time.Duration(resp.Expires) * time.Second / 2
 			tracer.Infof("fetch token successfully, next interval=%s", interval.String())
 		}
 		ticker.Reset(interval)
 	}
 }
 
-func (tm *tokenManager) fetch() (Token, error) {
-	var tokenResp Token
+type TokenResp struct {
+	AccessToken string `json:"access_token"`
+	Expires     int    `json:"expires_in"`
+}
+
+func (tm *tokenManager) fetch() (TokenResp, error) {
+	var tokenResp TokenResp
 
 	resp, err := tm.client.Get(tm.url)
 	if err != nil {
@@ -101,22 +106,17 @@ func (tm *tokenManager) fetch() (Token, error) {
 	return tokenResp, nil
 }
 
-type Token struct {
-	AccessToken string `json:"access_token"`
-	Expires     int    `json:"expires_in"`
-}
-
 func (tm *tokenManager) Token() (string, error) {
 	return tm.token.Load().(string), nil
 }
 
-type TokenInFile struct {
+type Token struct {
 	AccessToken     string    `json:"access_token"`
 	ExpireTimestamp time.Time `json:"timestamp"`
 }
 
-func readTokenFromFile() (TokenInFile, error) {
-	var token TokenInFile
+func readTokenFile() (Token, error) {
+	var token Token
 	f, err := os.Open(tokenFile)
 
 	if err != nil {
@@ -134,11 +134,11 @@ func readTokenFromFile() (TokenInFile, error) {
 	return token, err
 }
 
-func (t *TokenInFile) valid() bool {
+func (t *Token) valid() bool {
 	return time.Now().Before(t.ExpireTimestamp)
 }
 
-func (t *TokenInFile) nextRefreshInterval() time.Duration {
+func (t *Token) nextRefreshInterval() time.Duration {
 	interval := t.ExpireTimestamp.Sub(time.Now())
 	if interval > time.Minute {
 		return interval
@@ -146,12 +146,12 @@ func (t *TokenInFile) nextRefreshInterval() time.Duration {
 	return time.Millisecond
 }
 
-func (t *TokenInFile) token() string {
+func (t *Token) token() string {
 	return t.AccessToken
 }
 
-func writeTokenFile(token Token) error {
-	var _token = TokenInFile{
+func writeTokenFile(token TokenResp) error {
+	var _token = Token{
 		AccessToken:     token.AccessToken,
 		ExpireTimestamp: time.Now().Add(time.Duration(token.Expires)),
 	}
