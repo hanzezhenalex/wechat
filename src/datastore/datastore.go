@@ -38,7 +38,7 @@ type RecordInfo struct {
 	UpdatedBy string       `gorm:"size:256" json:"updated_by"`
 	OwnerID   string       `gorm:"column:owner_id;size:256;not null" json:"owner_id"`
 	Status    RecordStatus `gorm:"not null" json:"status"`
-	GraphUrl  string       `gorm:"size:128;not null" json:"graph_url"`
+	GraphUrl  string       `gorm:"not null" json:"graph_url"`
 	CreateAt  time.Time    `gorm:"type:TIMESTAMP;default:CURRENT_TIMESTAMP;<-:create" json:"create_at"`
 	UpdatedAt time.Time    `gorm:"type:TIMESTAMP;default:CURRENT_TIMESTAMP on update current_timestamp" json:"updated_at"`
 	Reserve1  string       `gorm:"size:256" json:",omitempty"`
