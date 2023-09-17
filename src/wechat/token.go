@@ -66,21 +66,32 @@ func (tm *tokenManager) daemon(interval time.Duration) {
 		tracer.Info("start to fetch token")
 
 		resp, err := tm.fetch()
+		tracer.Debugf("token resp: %#v", resp)
 
 		if err != nil {
 			interval = failInterval
 			tracer.Errorf("fail to fetch token, err=%s, waiting interval=%s",
 				err.Error(), interval.String())
 		} else {
-			tm.token.Store(resp.AccessToken)
-			go func() {
-				if err := writeTokenFile(resp); err != nil {
-					tracer.Errorf("fail to write token file, %s", err.Error())
-				}
-			}()
+			token := Token{
+				AccessToken:     resp.AccessToken,
+				ExpireTimestamp: time.Now().Add(time.Duration(resp.Expires)),
+			}
+			if token.valid() {
+				tm.token.Store(resp.AccessToken)
+				go func() {
+					if err := writeTokenFile(token); err != nil {
+						tracer.Errorf("fail to write token file, %s", err.Error())
+					}
+				}()
 
-			interval = time.Duration(resp.Expires) * time.Second / 2
-			tracer.Infof("fetch token successfully, next interval=%s", interval.String())
+				interval = time.Duration(resp.Expires/2) * time.Second
+				tracer.Infof("fetch token successfully, next interval=%s", interval.String())
+			} else {
+				interval = failInterval
+				tracer.Errorf("invalid token fetched, %#v, next interval=%s", token, interval.String())
+			}
+
 		}
 		ticker.Reset(interval)
 	}
@@ -150,17 +161,12 @@ func (t *Token) token() string {
 	return t.AccessToken
 }
 
-func writeTokenFile(token TokenResp) error {
-	var _token = Token{
-		AccessToken:     token.AccessToken,
-		ExpireTimestamp: time.Now().Add(time.Duration(token.Expires)),
-	}
-
+func writeTokenFile(token Token) error {
 	f, err := os.OpenFile(tokenFile, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644)
 	if err != nil {
 		return fmt.Errorf("fail to open token file, %w", err)
 	}
-	if err := json.NewEncoder(f).Encode(&_token); err != nil {
+	if err := json.NewEncoder(f).Encode(&token); err != nil {
 		return fmt.Errorf("fail to encode token file, %w", err)
 	}
 	return nil
