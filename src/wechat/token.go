@@ -4,13 +4,22 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"net/http"
+	"os"
 	"sync/atomic"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/hanzezhenalex/wechat/src"
 )
+
+const (
+	tokenFile    = "/home/ccloud/wechat/token.json"
+	failInterval = 5 * time.Second
+)
+
+var tracer = logrus.WithField("comp", "token_mngr")
 
 type tokenManager struct {
 	token atomic.Value // string
@@ -33,43 +42,57 @@ func NewTokenManager(cfg src.Config) *tokenManager {
 			cfg.AppID, cfg.AppSecret,
 		),
 	}
-	go tm.daemon()
+	tm.startLoop()
 	return tm
 }
 
-func (tm *tokenManager) daemon() {
-	var interval time.Duration
+func (tm *tokenManager) startLoop() {
+	interval := time.Millisecond
+	token, err := readTokenFile()
 
-	ticker := time.NewTimer(time.Hour)
-	hasFailed := 0
-	tracer := logrus.WithField("comp", "token_mngr")
+	if err == nil && token.valid() {
+		interval = token.nextRefreshInterval()
+		tm.token.Store(token.token())
+	}
+
+	go tm.daemon(interval)
+}
+
+func (tm *tokenManager) daemon(interval time.Duration) {
+	ticker := time.NewTimer(interval)
 
 	for {
 		<-ticker.C
-		// TODO: store it in a file, and read from file first?
 		tracer.Info("start to fetch token")
-		t, err := tm.fetch()
+
+		resp, err := tm.fetch()
+
 		if err != nil {
-			hasFailed++
-			interval = time.Duration(hasFailed*hasFailed) * time.Second
-			tracer.Errorf("fail to fetch token, fail cnt=%d err=%s, waiting interval=%s",
-				hasFailed, err.Error(), interval.String())
+			interval = failInterval
+			tracer.Errorf("fail to fetch token, err=%s, waiting interval=%s",
+				err.Error(), interval.String())
 		} else {
-			tm.token.Store(t.AccessToken)
-			interval = time.Duration(t.Expires) * time.Second
+			tm.token.Store(resp.AccessToken)
+			go func() {
+				if err := writeTokenFile(resp); err != nil {
+					tracer.Errorf("fail to write token file, %s", err.Error())
+				}
+			}()
+
+			interval = time.Duration(resp.Expires) * time.Second / 2
 			tracer.Infof("fetch token successfully, next interval=%s", interval.String())
 		}
 		ticker.Reset(interval)
 	}
 }
 
-type token struct {
+type TokenResp struct {
 	AccessToken string `json:"access_token"`
 	Expires     int    `json:"expires_in"`
 }
 
-func (tm *tokenManager) fetch() (token, error) {
-	var tokenResp token
+func (tm *tokenManager) fetch() (TokenResp, error) {
+	var tokenResp TokenResp
 
 	resp, err := tm.client.Get(tm.url)
 	if err != nil {
@@ -85,4 +108,60 @@ func (tm *tokenManager) fetch() (token, error) {
 
 func (tm *tokenManager) Token() (string, error) {
 	return tm.token.Load().(string), nil
+}
+
+type Token struct {
+	AccessToken     string    `json:"access_token"`
+	ExpireTimestamp time.Time `json:"timestamp"`
+}
+
+func readTokenFile() (Token, error) {
+	var token Token
+	f, err := os.Open(tokenFile)
+
+	if err != nil {
+		if os.IsNotExist(err) {
+			tracer.Info("token file not exist")
+			return token, nil
+		} else {
+			return token, fmt.Errorf("fail to open token file, %w", err)
+		}
+	} else {
+		if err := json.NewDecoder(f).Decode(&token); err != nil {
+			return token, fmt.Errorf("fail to decode token file, %w", err)
+		}
+	}
+	return token, err
+}
+
+func (t *Token) valid() bool {
+	return time.Now().Before(t.ExpireTimestamp)
+}
+
+func (t *Token) nextRefreshInterval() time.Duration {
+	interval := t.ExpireTimestamp.Sub(time.Now())
+	if interval > time.Minute {
+		return interval
+	}
+	return time.Millisecond
+}
+
+func (t *Token) token() string {
+	return t.AccessToken
+}
+
+func writeTokenFile(token TokenResp) error {
+	var _token = Token{
+		AccessToken:     token.AccessToken,
+		ExpireTimestamp: time.Now().Add(time.Duration(token.Expires)),
+	}
+
+	f, err := os.OpenFile(tokenFile, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644)
+	if err != nil {
+		return fmt.Errorf("fail to open token file, %w", err)
+	}
+	if err := json.NewEncoder(f).Encode(&_token); err != nil {
+		return fmt.Errorf("fail to encode token file, %w", err)
+	}
+	return nil
 }
