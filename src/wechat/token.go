@@ -15,7 +15,6 @@ import (
 )
 
 const (
-	tokenFile    = "/home/ccloud/wechat/token.json"
 	failInterval = 5 * time.Second
 )
 
@@ -26,6 +25,7 @@ type tokenManager struct {
 
 	client *http.Client
 	url    string
+	path   string
 }
 
 func NewTokenManager(cfg src.Config) *tokenManager {
@@ -41,6 +41,7 @@ func NewTokenManager(cfg src.Config) *tokenManager {
 			"https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=%s&secret=%s",
 			cfg.AppID, cfg.AppSecret,
 		),
+		path: cfg.TokenFilePath,
 	}
 	tm.startLoop()
 	return tm
@@ -48,7 +49,7 @@ func NewTokenManager(cfg src.Config) *tokenManager {
 
 func (tm *tokenManager) startLoop() {
 	interval := time.Millisecond
-	token, err := readTokenFile()
+	token, err := tm.readTokenFile()
 
 	if err == nil && token.valid() {
 		interval = token.nextRefreshInterval()
@@ -80,7 +81,7 @@ func (tm *tokenManager) daemon(interval time.Duration) {
 			if token.valid() {
 				tm.token.Store(resp.AccessToken)
 				go func() {
-					if err := writeTokenFile(token); err != nil {
+					if err := tm.writeTokenFile(token); err != nil {
 						tracer.Errorf("fail to write token file, %s", err.Error())
 					}
 				}()
@@ -126,9 +127,9 @@ type Token struct {
 	ExpireTimestamp time.Time `json:"timestamp"`
 }
 
-func readTokenFile() (Token, error) {
+func (tm *tokenManager) readTokenFile() (Token, error) {
 	var token Token
-	f, err := os.Open(tokenFile)
+	f, err := os.Open(tm.path)
 
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -161,8 +162,8 @@ func (t *Token) token() string {
 	return t.AccessToken
 }
 
-func writeTokenFile(token Token) error {
-	f, err := os.OpenFile(tokenFile, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644)
+func (tm *tokenManager) writeTokenFile(token Token) error {
+	f, err := os.OpenFile(tm.path, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644)
 	if err != nil {
 		return fmt.Errorf("fail to open token file, %w", err)
 	}

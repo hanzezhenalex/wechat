@@ -9,7 +9,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const defaultDatabase = "wechat"
+const (
+	defaultDatabase = "wechat"
+
+	defaultTokenFile = "/usr/app/token.json"
+)
 
 type DbConfig struct {
 	Username string `json:"username"`
@@ -28,9 +32,10 @@ func (dbCfg DbConfig) Dns() string {
 
 type Config struct {
 	DbConfig
-	Token     string `json:"token"`
-	AppID     string `json:"app_id"`
-	AppSecret string `json:"app_secret"`
+	Token         string `json:"token"`
+	AppID         string `json:"app_id"`
+	AppSecret     string `json:"app_secret"`
+	TokenFilePath string `json:"token_file_path"`
 }
 
 func NewConfigFromFile(path string) (Config, error) {
@@ -43,6 +48,9 @@ func NewConfigFromFile(path string) (Config, error) {
 
 	if err := json.NewDecoder(bytes.NewBuffer(raw)).Decode(&cfg); err != nil {
 		return cfg, fmt.Errorf("fail to decode config file, %w", err)
+	}
+	if cfg.TokenFilePath == "" {
+		cfg.TokenFilePath = defaultTokenFile
 	}
 	return cfg, err
 }
