@@ -4,23 +4,49 @@ services:
     image: mysql/mysql-server:latest
     restart: always
     environment:
-      MYSQL_USER: 'sergey'
-      MYSQL_PASSWORD: 'sergey'
-      MYSQL_ROOT_PASSWORD: 'sergey'
-      MYSQL_DATABASE: 'wechat'
+      MYSQL_USER: ${mysql_user}
+      MYSQL_PASSWORD: ${mysql_user_password}
+      MYSQL_ROOT_PASSWORD: ${mysql_root_password}
+      MYSQL_DATABASE: ${mysql_database}
     volumes:
-      - /home/mysql/data:/var/lib/mysql
+      - ${mysql_data_volume}:/var/lib/mysql
     container_name:
       mysql
+
+  init-db-user:
+    image: mysql/mysql-server:latest
+    entrypoint:
+      - "bash"
+      - "/var/usr/wechat/db.sh"
+    environment:
+      MYSQL_USER: ${mysql_user}
+      MYSQL_ROOT_PASSWORD: ${mysql_root_password}
+      MYSQL_DATABASE: ${mysql_database}
+      MYSQL_HOST: mysql-for-wechat
+    volumes:
+      - ${current_project_path}/deploy:/var/usr/wechat
+    depends_on:
+      - mysql-for-wechat
+
   wechat-server:
     build: .
     restart: always
     container_name: wechat_server
     depends_on:
-      - mysql
-    volumes:
-      - /home/ccloud/wechat:/usr/app/wechat
+      - init-db-user
+    environment:
+      MYSQL_USER: ${mysql_user}
+      MYSQL_PASSWORD: ${mysql_password}
+      MYSQL_DATABASE: ${mysql_database}
+      MYSQL_HOST: "mysql-for-wechat"
+      TOKEN: ${token}
+      APP_ID: ${app_id}
+      APP_SECRET: ${app_secret}
+      TOKEN_FILE_PATH: "/usr/app"
     ports:
       - "8096:8096"
-    command:
-      - "--config /usr/app/config_wechat.json"
+    entrypoint:
+      - "bash"
+      - "/var/usr/wechat/config.sh"
+    volumes:
+      - ${current_project_path}/deploy:/var/usr/wechat
